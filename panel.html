@@ -1,0 +1,553 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Queue Panel</title>
+<style>
+  body {
+    margin: 0;
+    height: 100vh;
+    font-family: Segoe UI, Arial, sans-serif;
+    font-size: 14px;
+    background: #202020;
+    color: #fff;
+    border: 1px solid #3c3c3c;
+    box-sizing: border-box;
+    padding: 10px 12px;
+    overflow: hidden;
+  }
+
+  .hidden { display: none; }
+
+  .header {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 5px;
+    margin-bottom: 4px;
+    font-weight: 600;
+  }
+
+  #customRideMenuView .header {
+    margin-bottom: 8px;
+  }
+
+  .home-header {
+    grid-template-columns: auto auto auto auto 1fr auto;
+  }
+
+  .title {
+    text-align: center;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    user-select: none;
+    -webkit-user-select: none;
+  }
+
+  button {
+    font-family: Segoe UI, Arial, sans-serif;
+  }
+
+  .icon-btn {
+    background: none;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    font-size: 16px;
+    padding: 0 2px;
+    line-height: 1;
+  }
+
+  .icon-btn.home-btn {
+    font-size: 20px;
+  }
+
+  .icon-btn:hover,
+  .icon-btn.active {
+    color: #ffb300;
+  }
+
+  .icon-btn:disabled {
+    color: #555;
+    cursor: default;
+  }
+
+  .context-menu {
+    position: fixed;
+    z-index: 20;
+    background: #252525;
+    border: 1px solid #555;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    padding: 4px;
+    min-width: 145px;
+  }
+
+  .context-menu button {
+    width: 100%;
+    background: transparent;
+    border: none;
+    color: #fff;
+    cursor: pointer;
+    padding: 6px 8px;
+    text-align: left;
+    font-size: 13px;
+  }
+
+  .context-menu button:hover {
+    background: #3a3a3a;
+    color: #ffb300;
+  }
+
+  .arrow-btn {
+    font-size: 13px;
+  }
+
+  .settings-option {
+    width: 100%;
+    background: #2b2b2b;
+    border: 1px solid #444;
+    color: #fff;
+    padding: 8px 10px;
+    margin-bottom: 8px;
+    text-align: left;
+    cursor: pointer;
+    font-weight: 600;
+    font-size: 14px;
+  }
+
+  .settings-option:hover {
+    background: #3a3a3a;
+  }
+
+  .section-break {
+    border-top: 1px solid #555;
+    margin: 14px 0;
+  }
+
+  .muted {
+    color: #888;
+    line-height: 1.45;
+  }
+
+  .source-line {
+    display: block;
+    color: #7f9fc4;
+    font-size: 11px;
+    text-align: center;
+    margin-bottom: 3px;
+    text-decoration: none;
+    cursor: pointer;
+  }
+
+  .source-line:hover {
+    color: #ffb300;
+  }
+
+  .header-divider {
+    height: 1px;
+    margin: 3px 8px 5px 8px;
+    background: rgba(120, 170, 255, 0.15);
+  }
+
+  .custom-ride-divider {
+    height: 1px;
+    margin: 7px 8px;
+    background: rgba(120, 170, 255, 0.15);
+  }
+
+  .add-divider-row {
+    cursor: pointer;
+  }
+
+  .add-divider-row .ride-name,
+  .add-divider-row .icon-btn {
+    transition: color 0.15s ease;
+  }
+
+  .add-divider-row:hover .ride-name,
+  .add-divider-row:hover .icon-btn {
+    color: #ffb300;
+  }
+
+  .add-favorite-park-row,
+  .add-favorite-ride-row {
+    cursor: pointer;
+  }
+
+  .add-favorite-park-row .park-name,
+  .add-favorite-ride-row .ride-name {
+    transition: color 0.15s ease;
+  }
+
+  .add-favorite-park-row:hover .park-name,
+  .add-favorite-park-row:hover .favorite-park-btn,
+  .add-favorite-ride-row:hover .ride-name,
+  .add-favorite-ride-row:hover .ride-star-btn {
+    color: #ffb300;
+  }
+
+  .custom-menu-row {
+    cursor: pointer;
+  }
+
+  .custom-menu-row .menu-label,
+  .custom-menu-row .menu-arrow {
+    transition: color 0.15s ease;
+  }
+
+  .custom-menu-row:hover .menu-label,
+  .custom-menu-row:hover .menu-arrow {
+    color: #ffb300;
+  }
+
+  .menu-label {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .menu-arrow {
+    padding-right: 2px;
+  }
+
+  .add-custom-list-row {
+    cursor: pointer;
+  }
+
+  .add-custom-list-row .park-name {
+    transition: color 0.15s ease;
+  }
+
+  .add-custom-list-row:hover .park-name,
+  .add-custom-list-row:hover .icon-btn {
+    color: #ffb300;
+  }
+
+  .choose-source-park-row {
+    cursor: pointer;
+  }
+
+  .choose-source-park-row .park-name {
+    transition: color 0.15s ease;
+  }
+
+  .choose-source-park-row:hover .park-name,
+  .choose-source-park-row:hover .icon-btn {
+    color: #ffb300;
+  }
+
+  #mainView {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #mainView.hidden {
+    display: none;
+  }
+
+  #customRideOrderView {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #customRideOrderView.hidden {
+    display: none;
+  }
+
+  #customRideOrderList {
+    flex: 1;
+    min-height: 0;
+  }
+
+  #rideList {
+    flex: 1;
+    min-height: 0;
+    overflow-y: auto;
+    padding-right: 0;
+  }
+
+  #rideList.has-scrollbar .ride {
+    padding-right: 10px;
+  }
+
+  #rideList::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  #rideList::-webkit-scrollbar-track {
+    background: #252525;
+    border-radius: 5px;
+  }
+
+  #rideList::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 5px;
+    border: 2px solid #252525;
+  }
+
+  #rideList::-webkit-scrollbar-thumb:hover {
+    background: #9db9d9;
+  }
+
+  .scroll-list::-webkit-scrollbar {
+    width: 10px;
+  }
+
+  .scroll-list::-webkit-scrollbar-track {
+    background: #252525;
+    border-radius: 5px;
+  }
+
+  .scroll-list::-webkit-scrollbar-thumb {
+    background: #555;
+    border-radius: 5px;
+    border: 2px solid #252525;
+  }
+
+  .scroll-list::-webkit-scrollbar-thumb:hover {
+    background: #9db9d9;
+  }
+
+  .ride {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    line-height: 1.6;
+  }
+
+  .ride-name,
+  .park-name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ride-source {
+    display: block;
+    color: #888;
+    font-size: 11px;
+    margin-top: 1px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .low { color: #4caf50; }
+  .medium { color: #ffb300; }
+  .high { color: #ff5252; }
+  .closed { color: #888; }
+
+  input {
+    width: 100%;
+    box-sizing: border-box;
+    margin-bottom: 8px;
+    padding: 7px 8px;
+    background: #111;
+    border: 1px solid #444;
+    color: #fff;
+    font-size: 14px;
+  }
+
+  input:focus {
+    outline: 1px solid #ffb300;
+    border-color: #ffb300;
+  }
+
+  .custom-park-name-input {
+    margin: 0;
+    padding: 0;
+    width: auto;
+    min-width: 0;
+    flex: 1;
+    background: transparent;
+    border: 1px solid transparent;
+    outline: none;
+    color: inherit;
+    font: inherit;
+    transition: border-color 0.15s ease;
+  }
+
+  .picker-row:hover .custom-park-name-input {
+    border-color: #ffb300;
+    background: rgba(255, 179, 0, 0.05);
+  }
+
+  .custom-park-name-input:hover,
+  .custom-park-name-input:focus {
+    border-color: #ffb300;
+  }
+
+  .scroll-list {
+    overflow-y: auto;
+    padding-right: 4px;
+  }
+
+  #parkPickerView .scroll-list,
+  #ridePickerView .scroll-list,
+  #customSourceParkPickerView .scroll-list {
+    max-height: 244px;
+  }
+
+  .picker-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: #2b2b2b;
+    border: 1px solid #3f3f3f;
+    color: #fff;
+    padding: 6px 8px;
+    margin-bottom: 5px;
+    box-sizing: border-box;
+  }
+
+  .picker-row.selected {
+    background: #263528;
+  }
+
+  .row-actions {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+
+  .order-row {
+    display: grid;
+    grid-template-columns: auto 1fr auto auto;
+    gap: 6px;
+    align-items: center;
+    background: #2b2b2b;
+    border: 1px solid #3f3f3f;
+    padding: 6px 8px;
+    margin-bottom: 5px;
+  }
+
+  .small-btn {
+    background: #1f1f1f;
+    border: 1px solid #555;
+    color: #fff;
+    cursor: pointer;
+    min-width: 26px;
+    height: 24px;
+  }
+
+  .small-btn:hover {
+    color: #ffb300;
+    background: #333;
+  }
+
+  .small-btn:disabled {
+    color: #555;
+    cursor: default;
+  }
+</style>
+</head>
+
+<body>
+  <div id="mainView">
+    <div class="header home-header">
+      <button id="homeBtn" class="icon-btn home-btn" title="Go to home park">⌂</button>
+      <button id="prevParkBtn" class="icon-btn arrow-btn" title="Previous favorite park">◁</button>
+      <button id="nextParkBtn" class="icon-btn arrow-btn" title="Next favorite park">▷</button>
+      <button id="refreshBtn" class="icon-btn" title="Refresh">↻</button>
+      <span id="parkTitle" class="title">No park selected</span>
+      <button id="settingsBtn" class="icon-btn" title="Park list">⚙</button>
+    </div>
+
+    <a
+      id="sourceStatus"
+      class="source-line"
+      href="#"
+      target="_blank"
+    >
+      Powered by Queue-Times.com • Never updated
+    </a>
+
+          <div class="header-divider"></div>
+
+    <div id="rideList"></div>
+
+    <div id="homeContextMenu" class="context-menu hidden">
+       <button id="setHomeParkBtn" type="button">Set as Home Park</button>
+    </div>
+
+  </div>
+
+  <div id="parkPickerView" class="hidden">
+    <div class="header">
+      <button id="parkPickerBackBtn" class="icon-btn">←</button>
+      <span class="title">Parks</span>
+      <span></span>
+    </div>
+
+    <input id="parkFilter" type="text" placeholder="Filter parks..." />
+    <div id="allParkList" class="scroll-list"></div>
+  </div>
+
+  <div id="customRideMenuView" class="hidden">
+    <div class="header">
+      <button id="customRideMenuBackBtn" class="icon-btn">←</button>
+      <span id="customRideMenuTitle" class="title"></span>
+      <span></span>
+    </div>
+
+    <div id="customAddRidesBtn" class="picker-row custom-menu-row">
+      <span class="menu-label">Add Rides</span>
+
+      <span class="row-actions">
+        <span class="menu-arrow">›</span>
+      </span>
+    </div>
+
+    <div id="customReorderRidesBtn" class="picker-row custom-menu-row">
+      <span class="menu-label">Manage Ride List</span>
+
+      <span class="row-actions">
+        <span class="menu-arrow">›</span>
+      </span>
+    </div>
+
+    <div id="customDeleteListBtn" class="picker-row custom-menu-row">
+      <span class="menu-label">Delete Custom Ride List</span>
+      <span></span>
+    </div>
+  </div>
+
+  <div id="customSourceParkPickerView" class="hidden">
+    <div class="header">
+      <button id="customSourceParkBackBtn" class="icon-btn">←</button>
+      <span id="customSourceParkTitle" class="title">Choose Source Park</span>
+      <span></span>
+    </div>
+
+    <input id="customSourceParkFilter" type="text" placeholder="Filter parks..." />
+    <div id="customSourceParkList" class="scroll-list"></div>
+  </div>
+
+  <div id="customRideOrderView" class="hidden">
+    <div class="header">
+      <button id="customRideOrderBackBtn" class="icon-btn">←</button>
+      <span id="customRideOrderTitle" class="title">Reorder Custom List</span>
+      <span></span>
+    </div>
+
+    <div id="customRideOrderList" class="scroll-list"></div>
+  </div>
+
+  <div id="ridePickerView" class="hidden">
+    <div class="header">
+      <button id="ridePickerBackBtn" class="icon-btn">←</button>
+      <span id="ridePickerTitle" class="title">Favorite Rides</span>
+      <span></span>
+    </div>
+
+    <input id="rideFilter" type="text" placeholder="Filter rides..." />
+    <div id="allRideList" class="scroll-list"></div>
+  </div>
+
+  <script src="renderer.js"></script>
+</body>
+</html>

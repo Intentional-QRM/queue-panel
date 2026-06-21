@@ -1,0 +1,33 @@
+{
+  "name": "queue-panel",
+  "version": "1.0.0",
+  "description": "Desktop tray application for theme park wait times powered by Queue-Times.com",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "keywords": [
+    "theme-parks",
+    "wait-times",
+    "queue-times",
+    "electron",
+    "desktop",
+    "tray"
+  ],
+  "author": "Intentional-QRM",
+  "license": "MIT",
+  "type": "commonjs",
+  "devDependencies": {
+    "electron": "^42.4.1",
+    "electron-builder": "^26.15.3"
+  },
+  "build": {
+    "appId": "com.queuepanel.app",
+    "productName": "Queue Panel",
+    "win": {
+      "target": "nsis",
+      "icon": "assets/icon256.png"
+    }
+  }
+}
