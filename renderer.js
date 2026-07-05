@@ -23,6 +23,9 @@ let activeCustomSourceParkId = null;
 let parkHoursById = {};
 let didInitialMainResize = false;
 let lastMainPanelHeight = null;
+let activeDragScrollContainer = null;
+let dragAutoScrollFrame = null;
+let dragAutoScrollSpeed = 0;
 
 const $ = (id) => document.getElementById(id);
 
@@ -602,7 +605,7 @@ function renderRidePicker() {
     const rideName = isDivider ? "── Divider ──" : standardRideName(item);
 
     const row = document.createElement("div");
-    row.className = "picker-row selected";
+    row.className = "picker-row selected draggable-row";
 
     row.innerHTML = `
       <button class="icon-btn ride-star-btn active" title="${isDivider ? "Remove divider" : "Remove ride"}">★</button>
@@ -614,10 +617,7 @@ function renderRidePicker() {
       <span class="row-actions">
         ${
           !filter
-            ? `
-              <button class="small-btn" title="Move up" ${index === 0 ? "disabled" : ""}>↑</button>
-              <button class="small-btn" title="Move down" ${index === selected.length - 1 ? "disabled" : ""}>↓</button>
-            `
+            ? `<button class="icon-btn drag-handle" title="Drag to reorder">☰</button>`
             : ""
         }
       </span>
@@ -631,21 +631,21 @@ function renderRidePicker() {
     });
 
     if (!filter) {
-      const [upBtn, downBtn] = row.querySelectorAll(".small-btn");
+      makeRowDraggable(
+        row,
+        row.querySelector(".drag-handle"),
+        selected,
+        index,
+        (commit = true) => {
+          state.ridesByParkId[id] = selected;
 
-      upBtn.addEventListener("click", () => {
-        moveItem(selected, index, index - 1);
-        state.ridesByParkId[id] = selected;
-        saveState();
-        renderRidePicker();
-      });
+          if (commit) {
+            saveState();
+          }
 
-      downBtn.addEventListener("click", () => {
-        moveItem(selected, index, index + 1);
-        state.ridesByParkId[id] = selected;
-        saveState();
-        renderRidePicker();
-      });
+          renderRidePicker();
+        }
+      );
     }
 
     list.appendChild(row);
@@ -835,10 +835,7 @@ function renderParkPicker() {
         <span class="row-actions">
           ${
             isFavorite && !filter
-              ? `
-                <button class="small-btn move-up-btn" title="Move up" ${orderIndex === 0 ? "disabled" : ""}>↑</button>
-                <button class="small-btn move-down-btn" title="Move down" ${orderIndex === state.parkOrder.length - 1 ? "disabled" : ""}>↓</button>
-              `
+              ? `<button class="icon-btn drag-handle" title="Drag to reorder">☰</button>`
               : ""
           }
           <button class="icon-btn configure-park-btn" title="${park.isCustom ? "Custom list rides" : "Modify ride list"}">⚙</button>
@@ -932,22 +929,18 @@ function renderParkPicker() {
       });
 
       if (isFavorite && !filter) {
-        const upBtn = row.querySelector(".move-up-btn");
-        const downBtn = row.querySelector(".move-down-btn");
+        row.classList.add("draggable-row");
 
-        upBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          moveItem(state.parkOrder, orderIndex, orderIndex - 1);
-          saveState();
-          renderParkPicker();
-        });
-
-        downBtn.addEventListener("click", (event) => {
-          event.stopPropagation();
-          moveItem(state.parkOrder, orderIndex, orderIndex + 1);
-          saveState();
-          renderParkPicker();
-        });
+        makeRowDraggable(
+          row,
+          row.querySelector(".drag-handle"),
+          state.parkOrder,
+          orderIndex,
+          () => {
+            saveState();
+            renderParkPicker();
+          }
+        );
       }
 
       list.appendChild(row);
@@ -1258,25 +1251,24 @@ function renderCustomRideOrder() {
         }
       </span>
 
-      <button class="small-btn" title="Move up" ${index === 0 ? "disabled" : ""}>↑</button>
-      <button class="small-btn" title="Move down" ${index === rides.length - 1 ? "disabled" : ""}>↓</button>
+      <button class="icon-btn drag-handle" title="Drag to reorder">☰</button>
     `;
 
-    const [deleteBtn, upBtn, downBtn] = row.querySelectorAll("button");
+    const deleteBtn = row.querySelector(".small-btn");
 
-    upBtn.addEventListener("click", () => {
-      moveItem(rides, index, index - 1);
-      state.customParkRides[activeCustomListId] = rides;
-      saveState();
-      renderCustomRideOrder();
-    });
+    row.classList.add("draggable-row");
 
-    downBtn.addEventListener("click", () => {
-      moveItem(rides, index, index + 1);
-      state.customParkRides[activeCustomListId] = rides;
-      saveState();
-      renderCustomRideOrder();
-    });
+    makeRowDraggable(
+      row,
+      row.querySelector(".drag-handle"),
+      rides,
+      index,
+      () => {
+        state.customParkRides[activeCustomListId] = rides;
+        saveState();
+        renderCustomRideOrder();
+      }
+    );
 
     deleteBtn.addEventListener("click", () => {
       rides.splice(index, 1);
@@ -1293,7 +1285,6 @@ function renderCustomRideOrder() {
 
   addDividerRow.innerHTML = `
     <span class="ride-name">[Add Divider]</span>
-    <span></span>
     <span></span>
     <span></span>
   `;
@@ -1442,6 +1433,157 @@ function moveItem(array, from, to) {
   array.splice(to, 0, item);
 }
 
+function makeRowDraggable(row, handle, array, index, onReorder) {
+  if (!row || !handle) return;
+
+  handle.addEventListener("pointerdown", (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
+    const list = row.parentElement;
+    const scrollContainer = row.closest(".scroll-list");
+    const rowRect = row.getBoundingClientRect();
+
+    const startIndex = index;
+    let targetIndex = index;
+    const pointerOffsetY = event.clientY - rowRect.top;
+    let autoScrollFrame = null;
+    let autoScrollSpeed = 0;
+
+    const ghost = row.cloneNode(true);
+    ghost.classList.add("drag-ghost");
+    ghost.style.left = `${rowRect.left}px`;
+    ghost.style.top = `${rowRect.top}px`;
+    ghost.style.width = `${rowRect.width}px`;
+    ghost.style.height = `${rowRect.height}px`;
+
+    const placeholder = document.createElement("div");
+    placeholder.className = "drag-placeholder";
+    placeholder.style.height = `${rowRect.height}px`;
+
+    row.replaceWith(placeholder);
+    document.body.appendChild(ghost);
+
+    function draggableRows() {
+      return [...list.querySelectorAll(".draggable-row")];
+    }
+
+    function moveGhost(clientY) {
+      ghost.style.top = `${clientY - pointerOffsetY}px`;
+    }
+
+    function targetIndexFromPointer(clientY) {
+      const rows = draggableRows();
+
+      for (let i = 0; i < rows.length; i++) {
+        const rect = rows[i].getBoundingClientRect();
+
+        if (clientY < rect.top + rect.height / 2) {
+          return i;
+        }
+      }
+
+      return rows.length;
+    }
+
+    function movePlaceholder(clientY) {
+      const rows = draggableRows();
+      const nextIndex = targetIndexFromPointer(clientY);
+
+      if (nextIndex === targetIndex) return;
+
+      targetIndex = nextIndex;
+
+      if (targetIndex >= rows.length) {
+        const lastRow = rows[rows.length - 1];
+
+        if (lastRow) {
+          lastRow.after(placeholder);
+        }
+      } else {
+        rows[targetIndex].before(placeholder);
+      }
+    }
+
+    function updateAutoScroll(clientY) {
+      if (!scrollContainer) return;
+
+      if (scrollContainer.scrollHeight <= scrollContainer.clientHeight) {
+        stopAutoScroll();
+        return;
+      }
+
+      const rect = scrollContainer.getBoundingClientRect();
+      const threshold = 42;
+      const maxSpeed = 12;
+
+      if (clientY < rect.top + threshold) {
+        const distance = rect.top + threshold - clientY;
+        autoScrollSpeed = -Math.min(maxSpeed, Math.ceil(distance / 4));
+        startAutoScroll();
+      } else if (clientY > rect.bottom - threshold) {
+        const distance = clientY - (rect.bottom - threshold);
+        autoScrollSpeed = Math.min(maxSpeed, Math.ceil(distance / 4));
+        startAutoScroll();
+      } else {
+        stopAutoScroll();
+      }
+    }
+
+    function startAutoScroll() {
+      if (autoScrollFrame) return;
+
+      const tick = () => {
+        if (!scrollContainer || autoScrollSpeed === 0) {
+          stopAutoScroll();
+          return;
+        }
+
+        scrollContainer.scrollTop += autoScrollSpeed;
+        autoScrollFrame = requestAnimationFrame(tick);
+      };
+
+      autoScrollFrame = requestAnimationFrame(tick);
+    }
+
+    function stopAutoScroll() {
+      autoScrollSpeed = 0;
+
+      if (autoScrollFrame) {
+        cancelAnimationFrame(autoScrollFrame);
+        autoScrollFrame = null;
+      }
+    }
+
+    function onPointerMove(moveEvent) {
+      moveGhost(moveEvent.clientY);
+      movePlaceholder(moveEvent.clientY);
+      updateAutoScroll(moveEvent.clientY);
+    }
+
+    function onPointerUp() {
+      stopAutoScroll();
+
+      placeholder.replaceWith(row);
+      ghost.remove();
+
+      document.removeEventListener("pointermove", onPointerMove);
+      document.removeEventListener("pointerup", onPointerUp);
+
+      if (targetIndex !== startIndex) {
+        moveItem(array, startIndex, targetIndex);
+      }
+
+      onReorder(true);
+    }
+
+    document.addEventListener("pointermove", onPointerMove);
+    document.addEventListener("pointerup", onPointerUp);
+
+    moveGhost(event.clientY);
+  });
+}
+
 function escapeHtml(value) {
   return String(value)
     .replaceAll("&", "&amp;")
@@ -1450,13 +1592,6 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;")
     .replaceAll("'", "&#039;");
 }
-
-// function savedRidePreviewName(item) {
-//  if (!item) return "Unknown";
-//  if (item.type === "divider") return "───────";
-//  if (typeof item === "string") return item;
-//  return item.rideName || item.name || "Unknown";
-// }
 
 function closeHomeContextMenu() {
   $("homeContextMenu")?.classList.add("hidden");

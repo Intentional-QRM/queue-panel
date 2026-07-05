@@ -410,13 +410,13 @@
 
   .row-actions {
     display: flex;
-    gap: 6px;
+    gap: 8px;
     align-items: center;
   }
 
   .order-row {
     display: grid;
-    grid-template-columns: auto 1fr auto auto;
+    grid-template-columns: auto 1fr auto;
     gap: 6px;
     align-items: center;
     background: #2b2b2b;
@@ -443,6 +443,34 @@
     color: #555;
     cursor: default;
   }
+
+  .drag-handle {
+    color: #aaa;
+    cursor: grab;
+    user-select: none;
+    -webkit-user-select: none;
+    touch-action: none;
+  }
+
+  .drag-handle:active {
+    cursor: grabbing;
+  }
+
+  .drag-placeholder {
+    margin-bottom: 5px;
+    border: 1px dashed #ffb300;
+    background: rgba(255, 179, 0, 0.06);
+    box-sizing: border-box;
+  }
+
+  .drag-ghost {
+    position: fixed;
+    z-index: 9999;
+    pointer-events: none;
+    opacity: 0.95;
+    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+  }
+
 </style>
 </head>
 
