@@ -1,12 +1,12 @@
 # Queue Panel
 
-<p align="center">
-  <img src="assets/Screenshot_WDW_Queue_Panel.png" alt="Queue Panel Main Dashboard" width="400">
-</p>
-
 Queue Panel is a lightweight application for monitoring live theme park wait times using Queue-Times.com data.
 
 Whether you're planning your next theme park trip, checking wait times during your visit, or monitoring your favorite rides across multiple parks, Queue Panel provides a clean, customizable interface focused on the attractions that matter most to you.
+
+<p align="center">
+  <img src="assets/Screenshot_WDW_Queue_Panel.png" alt="Queue Panel Main Dashboard" width="400">
+</p>
 
 Originally developed as a Windows desktop tray application, Queue Panel now includes a native Android app built from the same shared codebase, providing a consistent experience across desktop and mobile devices.
 
@@ -27,14 +27,12 @@ Originally developed as a Windows desktop tray application, Queue Panel now incl
 
 ## Screenshots
 
-### Customized Organization for Single Parks (Busch Gardens Tampa)
+### Customized Organization for Single Parks
 
 <p align="center">
   <img src="assets/Screenshot_BGT1_Queue_Panel_Mobile.png" alt="Busch Gardens Tampa home screen" width="275">
   <img src="assets/Screenshot_BGT2_Queue_Panel_Mobile.png" alt="Busch Gardens Tampa ride management" width="275">
 </p>
-
-Organize attractions with custom dividers based on park, theme, ride type, manufacturer, or any category you choose.
 
 ### Custom Ride List Spanning Multiple Parks (Florida Coaster Summary)
 
@@ -42,8 +40,6 @@ Organize attractions with custom dividers based on park, theme, ride type, manuf
   <img src="assets/Screenshot_FLsumm1_Queue_Panel_Mobile.png" alt="Florida Coaster Summary" width="275">
   <img src="assets/Screenshot_FLsumm2_Queue_Panel_Mobile.png" alt="Manage Florida Coaster Summary" width="275">
 </p>
-
-Create custom ride lists that combine attractions from multiple parks into a single dashboard for quick comparison.
 
 ## Installation
 
