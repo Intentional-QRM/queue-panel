@@ -152,7 +152,7 @@
 
   .custom-ride-divider {
     height: 1px;
-    margin: 7px 8px;
+    margin: 5px 8px;
     background: rgba(120, 170, 255, 0.15);
   }
 
@@ -252,10 +252,24 @@
     flex-direction: column;
   }
 
+  #parkPickerView,
+  #ridePickerView,
+  #customSourceParkPickerView {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  #parkPickerView.hidden,
+  #ridePickerView.hidden,
+  #customSourceParkPickerView.hidden,
   #customRideOrderView.hidden {
     display: none;
   }
 
+  #parkPickerView .scroll-list,
+  #ridePickerView .scroll-list,
+  #customSourceParkPickerView .scroll-list,
   #customRideOrderList {
     flex: 1;
     min-height: 0;
@@ -357,6 +371,70 @@
     border-color: #ffb300;
   }
 
+  .filter-control {
+    position: relative;
+    margin-bottom: 8px;
+  }
+
+  .filter-control input {
+    margin-bottom: 0;
+    padding-right: 30px;
+  }
+
+  .filter-clear-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .filter-clear-btn:hover {
+    color: #ffb300;
+  }
+
+  .title-rename-control,
+  .inline-rename-control {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+  }
+
+  .title-rename-input,
+  .inline-rename-control .custom-park-name-input {
+    width: 100%;
+    margin: 0;
+    padding-right: 28px;
+  }
+
+  .rename-clear-btn {
+    position: absolute;
+    right: 4px;
+    top: 50%;
+    transform: translateY(-50%);
+    width: 22px;
+    height: 22px;
+    border: none;
+    background: transparent;
+    color: #aaa;
+    cursor: pointer;
+    font-size: 18px;
+    line-height: 1;
+    padding: 0;
+  }
+
+  .rename-clear-btn:hover {
+    color: #ffb300;
+  }
+
   .custom-park-name-input {
     margin: 0;
     padding: 0;
@@ -384,12 +462,6 @@
   .scroll-list {
     overflow-y: auto;
     padding-right: 4px;
-  }
-
-  #parkPickerView .scroll-list,
-  #ridePickerView .scroll-list,
-  #customSourceParkPickerView .scroll-list {
-    max-height: 244px;
   }
 
   .picker-row {
@@ -482,7 +554,7 @@
       <button id="nextParkBtn" class="icon-btn arrow-btn" title="Next favorite park">▷</button>
       <button id="refreshBtn" class="icon-btn" title="Refresh">↻</button>
       <span id="parkTitle" class="title">No park selected</span>
-      <button id="settingsBtn" class="icon-btn" title="Park list">⚙</button>
+      <button id="settingsBtn" class="icon-btn home-btn" title="Park list">⚙</button>
     </div>
 
     <a
@@ -511,7 +583,10 @@
       <span></span>
     </div>
 
-    <input id="parkFilter" type="text" placeholder="Filter parks..." />
+    <div class="filter-control">
+      <input id="parkFilter" type="text" placeholder="Filter parks..." />
+      <button id="parkFilterClear" class="filter-clear-btn hidden" type="button" title="Clear filter">&times;</button>
+    </div>
     <div id="allParkList" class="scroll-list"></div>
   </div>
 
@@ -551,7 +626,10 @@
       <span></span>
     </div>
 
-    <input id="customSourceParkFilter" type="text" placeholder="Filter parks..." />
+    <div class="filter-control">
+      <input id="customSourceParkFilter" type="text" placeholder="Filter parks..." />
+      <button id="customSourceParkFilterClear" class="filter-clear-btn hidden" type="button" title="Clear filter">&times;</button>
+    </div>
     <div id="customSourceParkList" class="scroll-list"></div>
   </div>
 
@@ -572,10 +650,14 @@
       <span></span>
     </div>
 
-    <input id="rideFilter" type="text" placeholder="Filter rides..." />
+    <div class="filter-control">
+      <input id="rideFilter" type="text" placeholder="Filter rides..." />
+      <button id="rideFilterClear" class="filter-clear-btn hidden" type="button" title="Clear filter">&times;</button>
+    </div>
     <div id="allRideList" class="scroll-list"></div>
   </div>
 
+  <script src="../shared/queue-panel-shared.js"></script>
   <script src="renderer.js"></script>
 </body>
 </html>

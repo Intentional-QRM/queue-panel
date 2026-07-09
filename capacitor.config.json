@@ -1,0 +1,18 @@
+{
+  "appId": "com.queuepanel.app",
+  "appName": "Queue Panel",
+  "webDir": "mobile",
+  "server": {
+    "androidScheme": "https"
+  },
+  "plugins": {
+    "CapacitorHttp": {
+      "enabled": true
+    },
+    "SplashScreen": {
+      "launchAutoHide": true,
+      "backgroundColor": "#202020",
+      "androidSplashResourceName": "splash"
+    }
+  }
+}

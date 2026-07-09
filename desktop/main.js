@@ -12,7 +12,7 @@ let trayMenuState = {
 let panelBottomY = null;
 
 const PANEL_WIDTH = 340;
-const PANEL_BASE_HEIGHT = 260;
+const PANEL_BASE_HEIGHT = 510;
 
 function createPanel() {
   if (panel && !panel.isDestroyed()) {
@@ -46,7 +46,7 @@ panel = new BrowserWindow({
   }
 });
 
-  panel.loadFile("panel.html");
+  panel.loadFile(path.join(__dirname, "panel.html"));
 
   panel.on("blur", () => {
     if (panel && !panel.isDestroyed()) {
@@ -161,7 +161,7 @@ function rebuildTrayMenu() {
 }
 
 function createTray() {
-  const iconPath = path.join(__dirname, "assets", "icon.png");
+  const iconPath = path.join(__dirname, "..", "assets", "icon.png");
 
   tray = new Tray(iconPath);
   tray.setToolTip("Queue Panel (Powered by Queue-Times.com)");

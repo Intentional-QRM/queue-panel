@@ -1,11 +1,14 @@
 {
   "name": "queue-panel",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Desktop tray application for theme park wait times powered by Queue-Times.com",
-  "main": "main.js",
+  "main": "desktop/main.js",
   "scripts": {
     "start": "electron .",
-    "dist": "electron-builder"
+    "dist": "electron-builder",
+    "mobile:prepare": "node scripts/prepare-android-web.js",
+    "android:sync": "npm run mobile:prepare && cap sync android",
+    "android:open": "npm run android:sync && cap open android"
   },
   "keywords": [
     "theme-parks",
@@ -29,5 +32,10 @@
       "target": "nsis",
       "icon": "assets/icon256.png"
     }
+  },
+  "dependencies": {
+    "@capacitor/android": "^8.4.1",
+    "@capacitor/cli": "^8.4.1",
+    "@capacitor/core": "^8.4.1"
   }
 }

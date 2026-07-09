@@ -1,15 +1,7 @@
+const Shared = window.QueuePanelShared;
 const STORAGE_KEY = "queuePanelState";
-
-const DEFAULT_STATE = {
-  homeParkId: null,
-  currentParkId: null,
-  favoriteParkIds: [],
-  parkOrder: [],
-  ridesByParkId: {},
-  parkNamesById: {},
-  customParks: [],
-  customParkRides: {}
-};
+const DEFAULT_STATE = Shared.DEFAULT_STATE;
+const queueApi = Shared.createApi();
 
 let state = loadState();
 let allParks = [];
@@ -20,12 +12,22 @@ let sourceTimer = null;
 let deleteCustomListArmed = false;
 let activeCustomListId = null;
 let activeCustomSourceParkId = null;
+let navigationReturnTarget = null;
+let draftCustomListId = null;
+let draftCustomListName = null;
+let draftCustomListChanged = false;
 let parkHoursById = {};
 let didInitialMainResize = false;
 let lastMainPanelHeight = null;
 let activeDragScrollContainer = null;
 let dragAutoScrollFrame = null;
 let dragAutoScrollSpeed = 0;
+let settingsLongPressTimer = null;
+let settingsLongPressRecognized = false;
+let settingsLongPressStartX = 0;
+let settingsLongPressStartY = 0;
+
+const MANAGEMENT_PANEL_HEIGHT = 510;
 
 const $ = (id) => document.getElementById(id);
 
@@ -39,55 +41,24 @@ const views = {
 };
 
 function loadState() {
-  try {
-    return {
-      ...DEFAULT_STATE,
-      ...(JSON.parse(localStorage.getItem(STORAGE_KEY)) || {})
-    };
-  } catch {
-    return { ...DEFAULT_STATE };
-  }
+  return Shared.loadState(localStorage, STORAGE_KEY);
 }
 
 function saveState() {
-  
-  state.favoriteParkIds = uniqueIds(state.favoriteParkIds);
-  state.parkOrder = uniqueIds(state.parkOrder).filter((id) =>
-    state.favoriteParkIds.includes(id)
-  );
-
-  state.customParks = Array.isArray(state.customParks)
-  ? state.customParks
-  : [];
-
-  state.customParkRides = state.customParkRides || {};
-
-  for (const id of state.favoriteParkIds) {
-    if (!state.parkOrder.includes(id)) {
-      state.parkOrder.push(id);
-    }
-  }
-
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  Shared.saveState(localStorage, STORAGE_KEY, state);
   updateTrayMenuState();
 }
 
 function uniqueIds(ids) {
-  return [...new Set(ids.map(String))];
+  return Shared.uniqueIds(ids);
 }
 
 function currentParkId() {
-  return state.currentParkId ? String(state.currentParkId) : null;
+  return Shared.currentParkId(state);
 }
 
 function currentParkName() {
-  const id = currentParkId();
-  if (!id) return "No park selected";
-
-  const customPark = customParkById(id);
-  if (customPark) return customPark.name;
-
-  return state.parkNamesById[id] || `Park ${id}`;
+  return Shared.currentParkName(state);
 }
 
 function updateTrayMenuState() {
@@ -104,36 +75,18 @@ function updateTrayMenuState() {
 }
 
 function ridesFromQueueData(data) {
-  if (Array.isArray(data.lands) && data.lands.length > 0) {
-    return data.lands.flatMap((land) => land.rides || []);
-  }
-
-  if (Array.isArray(data.rides)) {
-    return data.rides;
-  }
-
-  return [];
+  return Shared.ridesFromQueueData(data);
 }
 
 function parkPageUrl(parkId) {
-  return `https://queue-times.com/parks/${parkId}/queue_times`;
+  return queueApi.pageUrl(parkId);
 }
 
 async function loadParkHoursTooltip(parkId) {
   if (!parkId || isCustomParkId(parkId)) return;
 
   try {
-    const response = await fetch(parkPageUrl(parkId));
-    const html = await response.text();
-
-    const doc = new DOMParser().parseFromString(html, "text/html");
-
-    const hoursText = doc.querySelector("p.subtitle")?.textContent
-      ?.replace(/\s+/g, " ")
-      ?.trim();
-
-    if (!hoursText) return;
-
+    const hoursText = await queueApi.loadParkStatus(parkId);
     parkHoursById[String(parkId)] = hoursText;
 
     if (currentParkId() === String(parkId)) {
@@ -146,15 +99,15 @@ async function loadParkHoursTooltip(parkId) {
 }
 
 function parkQueueUrl(parkId) {
-  return `https://queue-times.com/parks/${parkId}/queue_times.json`;
+  return queueApi.queueUrl(parkId);
 }
 
 function isCustomParkId(id) {
-  return String(id || "").startsWith("custom_");
+  return Shared.isCustomParkId(id);
 }
 
 function customParkById(id) {
-  return state.customParks.find((park) => park.id === String(id));
+  return Shared.customParkById(state, id);
 }
 
 function displayParkName(park) {
@@ -162,39 +115,17 @@ function displayParkName(park) {
 }
 
 function nextCustomListNumber() {
-  let number = 1;
-
-  while (
-    state.customParks.some((park) =>
-      park.id === `custom_${number}` ||
-      park.name === `Custom List ${number}`
-    )
-  ) {
-    number++;
-  }
-
-  return number;
+  return Shared.nextCustomListNumber(state);
 }
 
 function createCustomList() {
-  const number = nextCustomListNumber();
-  const park = {
-    id: `custom_${number}`,
-    name: `Custom List ${number}`
-  };
-
-  state.customParks.push(park);
-  state.parkNamesById[park.id] = park.name;
-  state.favoriteParkIds.push(park.id);
-  state.parkOrder.push(park.id);
-  state.currentParkId = park.id;
-
-  if (!state.customParkRides[park.id]) {
-    state.customParkRides[park.id] = [];
-  }
-
+  const park = Shared.createCustomList(state);
+  draftCustomListId = park.id;
+  draftCustomListName = park.name;
+  draftCustomListChanged = false;
   saveState();
   renderParkPicker();
+  showCustomRideMenu(park.id);
 }
 
 function showView(name) {
@@ -202,6 +133,64 @@ function showView(name) {
   views[name].classList.remove("hidden");
   closeHomeContextMenu();
   resizePanelSoon();
+}
+
+function setNavigationReturnTarget(target) {
+  navigationReturnTarget = target;
+}
+
+function consumeNavigationReturnTarget() {
+  const target = navigationReturnTarget;
+  navigationReturnTarget = null;
+  return target;
+}
+
+function returnToHomeView() {
+  showView("main");
+  loadWaitTimes();
+
+  if (lastMainPanelHeight) {
+    setTimeout(() => {
+      window.electronAPI?.resizePanel?.(lastMainPanelHeight + 8);
+      setTimeout(updateRideListScrollState, 50);
+    }, 0);
+  }
+}
+
+function syncFilterClearButton(inputId) {
+  const input = $(inputId);
+  const clearButton = $(`${inputId}Clear`);
+  if (!input || !clearButton) return;
+
+  clearButton.classList.toggle("hidden", input.value.length === 0);
+}
+
+function resetFilter(inputId) {
+  const input = $(inputId);
+  if (!input) return;
+
+  input.value = "";
+  syncFilterClearButton(inputId);
+}
+
+function bindFilterClear(inputId, renderFn) {
+  const input = $(inputId);
+  const clearButton = $(`${inputId}Clear`);
+  if (!input || !clearButton) return;
+
+  input.addEventListener("input", () => {
+    syncFilterClearButton(inputId);
+    renderFn();
+  });
+
+  clearButton.addEventListener("click", () => {
+    input.value = "";
+    syncFilterClearButton(inputId);
+    renderFn();
+    input.focus();
+  });
+
+  syncFilterClearButton(inputId);
 }
 
 function updateSourceStatus() {
@@ -300,39 +289,26 @@ function resizePanelSoon(delay = 0) {
         !views.ridePicker.classList.contains("hidden");
 
       if (isManagementView) {
-        window.electronAPI?.resizePanel?.(340);
+        window.electronAPI?.resizePanel?.(MANAGEMENT_PANEL_HEIGHT);
         return;
       }
 
       if (!didInitialMainResize) {
         didInitialMainResize = true;
-        window.electronAPI?.resizePanel?.(260);
+        window.electronAPI?.resizePanel?.(MANAGEMENT_PANEL_HEIGHT);
       }
     });
   }, delay);
 }
 
 function waitClass(wait) {
-  if (wait >= 60) return "high";
-  if (wait >= 30) return "medium";
-  return "low";
+  return Shared.waitClass(wait);
 }
 
 async function loadAllParks() {
   if (allParks.length > 0) return allParks;
 
-  const response = await fetch("https://queue-times.com/parks.json");
-  const groups = await response.json();
-
-  allParks = groups
-    .flatMap((group) => group.parks)
-    .map((park) => ({
-      id: String(park.id),
-      name: park.name,
-      country: park.country || "",
-      continent: park.continent || ""
-    }))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  allParks = await queueApi.loadParks();
 
   for (const park of allParks) {
     state.parkNamesById[park.id] = park.name;
@@ -385,17 +361,30 @@ async function loadWaitTimes() {
   resizePanelSoon();
 
   try {
-    const response = await fetch(parkQueueUrl(id));
-    const data = await response.json();
+    const realSavedRides = savedRideNames.filter((item) =>
+      !Shared.isDividerItem(item) && !Shared.isParkStatusItem(item)
+    );
+    const allRides = realSavedRides.length > 0
+      ? ridesFromQueueData(await queueApi.loadQueue(id))
+      : [];
 
     lastRefreshTime = Date.now();
     updateSourceStatus();
 
-    const allRides = ridesFromQueueData(data)
+    const statusText = savedRideNames.some(Shared.isParkStatusItem)
+      ? await queueApi.loadParkStatus(id)
+      : null;
 
     const rides = savedRideNames
       .map((savedRide) => {
-        if (savedRide.type === "divider") return savedRide;
+        if (Shared.isDividerItem(savedRide)) return savedRide;
+        if (Shared.isParkStatusItem(savedRide)) {
+          return {
+            type: "parkStatus",
+            name: "Park Status",
+            statusText: statusText || "Unavailable"
+          };
+        }
 
         return allRides.find((ride) => ride.name === savedRide);
       })
@@ -430,19 +419,32 @@ async function loadCustomWaitTimes(id) {
   resizePanelSoon();
 
   try {
-    const realRides = savedRides.filter((ride) => ride.type !== "divider");
+    const realRides = savedRides.filter((ride) =>
+      !Shared.isDividerItem(ride) && !Shared.isParkStatusItem(ride)
+    );
+    const statusItems = savedRides.filter(Shared.isParkStatusItem);
 
     const uniqueParkIds = [
       ...new Set(realRides.map((ride) => String(ride.parkId)))
     ];
+    const uniqueStatusParkIds = [
+      ...new Set(statusItems.map((ride) => String(ride.parkId)))
+    ];
 
     const parkRideMap = {};
+    const parkStatusMap = {};
 
     await Promise.all(
       uniqueParkIds.map(async (parkId) => {
         const response = await fetch(parkQueueUrl(parkId));
         const data = await response.json();
         parkRideMap[parkId] = ridesFromQueueData(data);
+      })
+    );
+
+    await Promise.all(
+      uniqueStatusParkIds.map(async (parkId) => {
+        parkStatusMap[parkId] = await queueApi.loadParkStatus(parkId);
       })
     );
 
@@ -453,6 +455,17 @@ async function loadCustomWaitTimes(id) {
       .map((savedRide) => {
         if (savedRide.type === "divider") {
           return savedRide;
+        }
+
+        if (Shared.isParkStatusItem(savedRide)) {
+          const parkName = savedRide.parkName || `Park ${savedRide.parkId}`;
+          const statusText = parkStatusMap[String(savedRide.parkId)] || "Unavailable";
+          return {
+            type: "parkStatus",
+            name: parkName,
+            parkName,
+            statusText
+          };
         }
 
         const parkRides = parkRideMap[String(savedRide.parkId)] || [];
@@ -507,10 +520,27 @@ function renderRides(rides) {
   }
 
   for (const ride of rides) {
-    if (ride.type === "divider") {
+    if (Shared.isDividerItem(ride)) {
       const divider = document.createElement("div");
       divider.className = "custom-ride-divider";
       rideList.appendChild(divider);
+      continue;
+    }
+
+    if (Shared.isParkStatusItem(ride)) {
+      const row = document.createElement("div");
+      row.className = "ride";
+      const statusText = ride.statusText || "Unavailable";
+      const statusClass = Shared.parkStatusClass(statusText);
+      const label = ride.name || "Park Status";
+      row.innerHTML = `
+        <span class="ride-name" title="${escapeHtml(label)}">${escapeHtml(label)}</span>
+
+        <span class="${statusClass}" title="${escapeHtml(statusText)}">
+          ${escapeHtml(statusText)}
+        </span>
+      `;
+      rideList.appendChild(row);
       continue;
     }
 
@@ -551,7 +581,7 @@ async function loadRidePicker() {
   }
 
   $("ridePickerTitle").textContent = `${currentParkName()} Rides`;
-  $("rideFilter").value = "";
+  resetFilter("rideFilter");
   allRideList.innerHTML = `<div class="muted">Loading rides...</div>`;
   resizePanelSoon();
 
@@ -578,37 +608,27 @@ function renderRidePicker() {
   }
 
   const id = currentParkId();
-  const selected = normalizeStandardRideList(state.ridesByParkId[id] || []);
-  const filter = $("rideFilter").value.trim().toLowerCase();
-
-  const selectedRideNames = selected
-    .filter((item) => item.type !== "divider")
-    .map((item) => standardRideName(item));
-
-  const selectedMatches = selected
-    .map((item, index) => ({ item, index }))
-    .filter(({ item }) => {
-      if (item.type === "divider") return !filter;
-      return standardRideName(item).toLowerCase().includes(filter);
-    });
-
-  const availableRides = allPickerRides
-    .filter((ride) => !selectedRideNames.includes(ride.name))
-    .filter((ride) => ride.name.toLowerCase().includes(filter))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const {
+    selected,
+    filter,
+    selectedMatches,
+    availableSpecialItems,
+    availableRides
+  } = Shared.standardRidePickerModel(state, id, allPickerRides, $("rideFilter").value);
 
   const list = $("allRideList");
   list.innerHTML = "";
 
   selectedMatches.forEach(({ item, index }) => {
-    const isDivider = item.type === "divider";
-    const rideName = isDivider ? "── Divider ──" : standardRideName(item);
+    const isDivider = Shared.isDividerItem(item);
+    const isParkStatus = Shared.isParkStatusItem(item);
+    const rideName = isDivider ? "-- Divider --" : Shared.standardItemName(item);
 
     const row = document.createElement("div");
     row.className = "picker-row selected draggable-row";
 
     row.innerHTML = `
-      <button class="icon-btn ride-star-btn active" title="${isDivider ? "Remove divider" : "Remove ride"}">★</button>
+      <button class="icon-btn ride-star-btn active" title="${isDivider ? "Remove divider" : isParkStatus ? "Remove park status" : "Remove ride"}">&#9733;</button>
 
       <span class="ride-name" title="${escapeHtml(rideName)}">
         ${escapeHtml(rideName)}
@@ -617,7 +637,7 @@ function renderRidePicker() {
       <span class="row-actions">
         ${
           !filter
-            ? `<button class="icon-btn drag-handle" title="Drag to reorder">☰</button>`
+            ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#9776;</button>`
             : ""
         }
       </span>
@@ -631,12 +651,12 @@ function renderRidePicker() {
     });
 
     if (!filter) {
-      makeRowDraggable(
-        row,
-        row.querySelector(".drag-handle"),
-        selected,
-        index,
-        (commit = true) => {
+        makeRowDraggable(
+          row,
+          row.querySelector(".drag-handle"),
+          selected,
+          index,
+          (commit = true) => {
           state.ridesByParkId[id] = selected;
 
           if (commit) {
@@ -644,19 +664,47 @@ function renderRidePicker() {
           }
 
           renderRidePicker();
-        }
+        },
+        { boundToDraggableSection: true }
       );
     }
 
     list.appendChild(row);
   });
 
+  for (const item of availableSpecialItems) {
+    const row = document.createElement("div");
+    row.className = "picker-row add-favorite-ride-row";
+
+    row.innerHTML = `
+      <button class="icon-btn ride-star-btn" title="Add park status">&#9734;</button>
+
+      <span class="ride-name" title="Park Status">
+        [Add Park Status]
+      </span>
+
+      <span></span>
+    `;
+
+    const addParkStatus = () => {
+      selected.push(item);
+      state.ridesByParkId[id] = selected;
+      saveState();
+      renderRidePicker();
+    };
+
+    row.querySelector(".ride-star-btn").addEventListener("click", addParkStatus);
+    row.querySelector(".ride-name").addEventListener("click", addParkStatus);
+
+    list.appendChild(row);
+  }
+
   if (!filter) {
     const addDividerRow = document.createElement("div");
     addDividerRow.className = "picker-row add-divider-row";
 
     addDividerRow.innerHTML = `
-      <button class="icon-btn" title="Add divider">☆</button>
+      <button class="icon-btn" title="Add divider">&#9734;</button>
       <span class="ride-name">[Add Divider]</span>
       <span></span>
     `;
@@ -680,7 +728,7 @@ function renderRidePicker() {
     row.className = "picker-row add-favorite-ride-row";
 
     row.innerHTML = `
-      <button class="icon-btn ride-star-btn" title="Add ride">☆</button>
+      <button class="icon-btn ride-star-btn" title="Add ride">&#9734;</button>
 
       <span class="ride-name" title="${escapeHtml(ride.name)}">
         ${escapeHtml(ride.name)}
@@ -702,46 +750,36 @@ function renderRidePicker() {
     list.appendChild(row);
   }
 
-  if (selectedMatches.length === 0 && availableRides.length === 0) {
+  if (selectedMatches.length === 0 && availableSpecialItems.length === 0 && availableRides.length === 0) {
     list.innerHTML = `<div class="muted">No rides found.</div>`;
   }
 
   resizePanelSoon();
 }
-
 function standardRideName(item) {
-  return typeof item === "string" ? item : item?.rideName;
+  return Shared.standardRideName(item);
 }
 
 function standardRideIndex(rides, rideName) {
-  return rides.findIndex((item) => standardRideName(item) === rideName);
+  return Shared.standardRideIndex(rides, rideName);
 }
 
 function normalizeStandardRideList(rides) {
-  return (rides || []).filter(Boolean);
+  return Shared.normalizeStandardRideList(rides);
 }
 
 function toggleRideForCurrentPark(rideName) {
   const id = currentParkId();
   if (!id) return;
 
-  const rides = normalizeStandardRideList(state.ridesByParkId[id] || []);
-  const index = standardRideIndex(rides, rideName);
-
-  if (index !== -1) {
-    rides.splice(index, 1);
-  } else {
-    rides.push(rideName);
-  }
-
-  state.ridesByParkId[id] = rides;
+  Shared.toggleStandardRide(state, id, rideName);
   saveState();
 }
 
 async function loadParkPicker() {
   lastMainPanelHeight = window.innerHeight;
   const list = $("allParkList");
-  $("parkFilter").value = "";
+  resetFilter("parkFilter");
   list.innerHTML = `<div class="muted">Loading parks...</div>`;
   showView("parkPicker");
 
@@ -757,30 +795,8 @@ async function loadParkPicker() {
 }
 
 function renderParkPicker() {
-  const filter = $("parkFilter").value.trim().toLowerCase();
-
-  const customParks = state.customParks.map((park) => ({
-    ...park,
-    isCustom: true,
-    country: "",
-    continent: ""
-  }));
-
-  const matchingParks = [...customParks, ...allParks].filter((park) => {
-    const text = `${displayParkName(park)} ${park.country} ${park.continent}`.toLowerCase();
-    return text.includes(filter);
-  });
-
-  const favoriteParks = matchingParks
-    .filter((park) => state.favoriteParkIds.includes(park.id))
-    .sort((a, b) => state.parkOrder.indexOf(a.id) - state.parkOrder.indexOf(b.id));
-
-  const otherParks = matchingParks
-    .filter((park) => !state.favoriteParkIds.includes(park.id))
-    .sort((a, b) => {
-      if (a.isCustom !== b.isCustom) return a.isCustom ? -1 : 1;
-      return a.name.localeCompare(b.name);
-    });
+  const { filter, favoriteParks, otherParks } =
+    Shared.parkPickerGroups(state, allParks, $("parkFilter").value);
 
   const list = $("allParkList");
   list.innerHTML = "";
@@ -819,11 +835,14 @@ function renderParkPicker() {
         ${
           park.isCustom
             ? `
-              <input
-                class="park-name custom-park-name-input"
-                value="${escapeHtml(park.name)}"
-                title="${escapeHtml(park.name)}"
-              />
+              <span class="inline-rename-control">
+                <input
+                  class="park-name custom-park-name-input"
+                  value="${escapeHtml(park.name)}"
+                  title="${escapeHtml(park.name)}"
+                />
+                <button class="rename-clear-btn hidden" type="button" title="Clear name">&times;</button>
+              </span>
             `
             : `
               <span class="park-name" title="${escapeHtml(displayParkName(park))}">
@@ -864,44 +883,82 @@ function renderParkPicker() {
       }
 
       if (customNameInput) {
-        customNameInput.addEventListener("click", (event) => {
-          event.stopPropagation();
-        });
+        const customNameClearButton = row.querySelector(".rename-clear-btn");
+        const previousName = park.name;
+        let canceled = false;
+        let finishing = false;
 
-        customNameInput.addEventListener("keydown", (event) => {
-          if (event.key === "Enter") {
-            customNameInput.blur();
+        const syncInlineRenameClearButton = () => {
+          customNameClearButton?.classList.toggle(
+            "hidden",
+            document.activeElement !== customNameInput ||
+              customNameInput.value.length === 0
+          );
+        };
+
+        const finishInlineRename = (save) => {
+          if (finishing) return;
+          finishing = true;
+
+          if (save && !canceled) {
+            const newName = customNameInput.value.trim();
+
+            if (newName && newName !== previousName) {
+              saveCustomListName(park.id, newName);
+            } else {
+              customNameInput.value = previousName;
+            }
+          } else {
+            customNameInput.value = previousName;
           }
 
-          if (event.key === "Escape") {
-            customNameInput.value = park.name;
-            customNameInput.blur();
-          }
-        });
-
-        customNameInput.addEventListener("blur", () => {
-          const newName = customNameInput.value.trim();
-
-          if (!newName || newName === park.name) {
-            customNameInput.value = park.name;
-            return;
-          }
-
-          park.name = newName;
-
-          const storedPark = customParkById(park.id);
-          if (storedPark) {
-            storedPark.name = newName;
-          }
-
-          state.parkNamesById[park.id] = newName;
-
-          saveState();
+          customNameInput.blur();
+          syncInlineRenameClearButton();
           renderParkPicker();
 
           if (currentParkId() === park.id) {
             renderHomeShell();
           }
+        };
+
+        customNameInput.addEventListener("click", (event) => {
+          event.stopPropagation();
+        });
+
+        customNameInput.addEventListener("focus", () => {
+          canceled = false;
+          finishing = false;
+          syncInlineRenameClearButton();
+        });
+
+        customNameClearButton?.addEventListener("mousedown", (event) => {
+          event.preventDefault();
+        });
+
+        customNameClearButton?.addEventListener("click", (event) => {
+          event.stopPropagation();
+          customNameInput.value = "";
+          syncInlineRenameClearButton();
+          customNameInput.focus();
+        });
+
+        customNameInput.addEventListener("input", syncInlineRenameClearButton);
+
+        customNameInput.addEventListener("keydown", (event) => {
+          if (event.key === "Enter") {
+            event.preventDefault();
+            finishInlineRename(true);
+          }
+
+          if (event.key === "Escape") {
+            event.preventDefault();
+            canceled = true;
+            finishInlineRename(false);
+          }
+        });
+
+        customNameInput.addEventListener("blur", () => {
+          if (!canceled) finishInlineRename(true);
         });
       }
 
@@ -939,7 +996,8 @@ function renderParkPicker() {
           () => {
             saveState();
             renderParkPicker();
-          }
+          },
+          { boundToDraggableSection: true }
         );
       }
 
@@ -965,7 +1023,10 @@ function showCustomRideMenu(id) {
   const park = customParkById(id);
   if (!park) return;
 
+  activeCustomListId = id;
+  activeCustomSourceParkId = null;
   $("customRideMenuTitle").textContent = `Configure ${park.name}`;
+  $("customRideMenuTitle").title = "Rename custom list";
 
   $("customAddRidesBtn").querySelector(".menu-label").textContent =
     "Add Rides";
@@ -979,9 +1040,134 @@ function showCustomRideMenu(id) {
   showView("customRideMenu");
 }
 
+function saveCustomListName(id, newName) {
+  const park = customParkById(id);
+  if (!park) return false;
+
+  const trimmed = newName.trim();
+  if (!trimmed) return false;
+
+  const previousName = park.name;
+  if (trimmed === previousName) return true;
+
+  park.name = trimmed;
+  state.parkNamesById[id] = trimmed;
+
+  if (draftCustomListId === id) {
+    draftCustomListChanged = true;
+  }
+
+  saveState();
+  renderHomeShell();
+  return true;
+}
+
+function customListHasContent(id) {
+  return (state.customParkRides[id] || []).length > 0;
+}
+
+function shouldDiscardDraftCustomList(id) {
+  const park = customParkById(id);
+  return Boolean(
+    park &&
+    draftCustomListId === id &&
+    !draftCustomListChanged &&
+    park.name === draftCustomListName &&
+    !customListHasContent(id)
+  );
+}
+
+function clearDraftCustomList(id) {
+  if (draftCustomListId !== id) return;
+
+  draftCustomListId = null;
+  draftCustomListName = null;
+  draftCustomListChanged = false;
+}
+
+function leaveCustomRideMenu() {
+  const id = activeCustomListId || currentParkId();
+
+  if (id && shouldDiscardDraftCustomList(id)) {
+    clearDraftCustomList(id);
+    deleteCustomList(id);
+    return;
+  }
+
+  if (id) clearDraftCustomList(id);
+
+  if (consumeNavigationReturnTarget() === "home") {
+    returnToHomeView();
+    return;
+  }
+
+  showView("parkPicker");
+  renderParkPicker();
+}
+
+function startCustomMenuTitleRename() {
+  const id = activeCustomListId || currentParkId();
+  const park = customParkById(id);
+  const title = $("customRideMenuTitle");
+  if (!park || !title || title.querySelector("input")) return;
+
+  const previousName = park.name;
+  title.innerHTML = `
+    <span class="title-rename-control">
+      <input class="title-rename-input" value="${escapeHtml(previousName)}" />
+      <button class="rename-clear-btn ${previousName ? "" : "hidden"}" type="button" title="Clear name">&times;</button>
+    </span>
+  `;
+
+  const input = title.querySelector(".title-rename-input");
+  const clearButton = title.querySelector(".rename-clear-btn");
+  let canceled = false;
+
+  const finish = (save) => {
+    if (save && !canceled) {
+      saveCustomListName(id, input.value);
+    }
+
+    const updatedPark = customParkById(id);
+    title.textContent = `Configure ${updatedPark?.name || previousName}`;
+    resetDeleteCustomListButton();
+  };
+
+  input.addEventListener("input", () => {
+    clearButton.classList.toggle("hidden", input.value.length === 0);
+  });
+
+  clearButton.addEventListener("mousedown", (event) => {
+    event.preventDefault();
+  });
+
+  clearButton.addEventListener("click", () => {
+    input.value = "";
+    clearButton.classList.add("hidden");
+    input.focus();
+  });
+
+  input.addEventListener("keydown", (event) => {
+    if (event.key === "Enter") {
+      input.blur();
+    }
+
+    if (event.key === "Escape") {
+      canceled = true;
+      finish(false);
+    }
+  });
+
+  input.addEventListener("blur", () => {
+    if (!canceled) finish(true);
+  });
+
+  input.focus();
+  input.select();
+}
+
 function sourceParkIdsForCustomList(customId) {
-  const rides = state.customParkRides[customId] || [];
-  return new Set(rides.map((ride) => String(ride.parkId)));
+  return Shared.sourceParkIdsForCustomList(state, customId);
 }
 
 async function loadCustomSourceParkPicker(customId) {
@@ -991,7 +1177,7 @@ async function loadCustomSourceParkPicker(customId) {
   activeCustomListId = customId;
 
   $("customSourceParkTitle").textContent = "Choose Source Park";
-  $("customSourceParkFilter").value = "";
+  resetFilter("customSourceParkFilter");
   $("customSourceParkList").innerHTML = `<div class="muted">Loading parks...</div>`;
 
   showView("customSourceParkPicker");
@@ -1011,21 +1197,12 @@ async function loadCustomSourceParkPicker(customId) {
 function renderCustomSourceParkPicker() {
   if (!activeCustomListId) return;
 
-  const filter = $("customSourceParkFilter").value.trim().toLowerCase();
-  const sourceParkIds = sourceParkIdsForCustomList(activeCustomListId);
-
-  const matchingParks = allParks.filter((park) => {
-    const text = `${park.name} ${park.country} ${park.continent}`.toLowerCase();
-    return text.includes(filter);
-  });
-
-  const contributingParks = matchingParks
-    .filter((park) => sourceParkIds.has(String(park.id)))
-    .sort((a, b) => a.name.localeCompare(b.name));
-
-  const otherParks = matchingParks
-    .filter((park) => !sourceParkIds.has(String(park.id)))
-    .sort((a, b) => a.name.localeCompare(b.name));
+  const { contributingParks, otherParks } = Shared.customSourceParkGroups(
+    state,
+    allParks,
+    activeCustomListId,
+    $("customSourceParkFilter").value
+  );
 
   const list = $("customSourceParkList");
   list.innerHTML = "";
@@ -1074,7 +1251,7 @@ function renderCustomSourceParkPicker() {
 
 async function loadCustomRidePicker(customId, sourceParkId) {
   const customPark = customParkById(customId);
-  const sourcePark = allParks.find((park) => park.id === String(sourceParkId));
+  const sourcePark = allParks.find((park) => String(park.id) === String(sourceParkId));
 
   if (!customPark || !sourcePark) return;
 
@@ -1082,7 +1259,7 @@ async function loadCustomRidePicker(customId, sourceParkId) {
   activeCustomSourceParkId = String(sourceParkId);
 
   $("ridePickerTitle").textContent = `Add Rides from ${sourcePark.name}`;
-  $("rideFilter").value = "";
+  resetFilter("rideFilter");
   $("allRideList").innerHTML = `<div class="muted">Loading rides...</div>`;
 
   showView("ridePicker");
@@ -1111,23 +1288,14 @@ async function loadCustomRidePicker(customId, sourceParkId) {
 function renderCustomRidePicker() {
   if (!activeCustomListId || !activeCustomSourceParkId) return;
 
-  const selected = state.customParkRides[activeCustomListId] || [];
-  const filter = $("rideFilter").value.trim().toLowerCase();
-
-  const rides = allPickerRides
-    .filter((ride) => ride.name.toLowerCase().includes(filter))
-    .sort((a, b) => {
-      const aIndex = customRideIndex(activeCustomListId, a.parkId, a.name);
-      const bIndex = customRideIndex(activeCustomListId, b.parkId, b.name);
-
-      const aSelected = aIndex !== -1;
-      const bSelected = bIndex !== -1;
-
-      if (aSelected !== bSelected) return aSelected ? -1 : 1;
-      if (aSelected && bSelected) return aIndex - bIndex;
-
-      return a.name.localeCompare(b.name);
-    });
+  const sourcePark = allParks.find((park) => String(park.id) === String(activeCustomSourceParkId));
+  const rides = Shared.customRidePickerRows(
+    state,
+    activeCustomListId,
+    allPickerRides,
+    $("rideFilter").value,
+    sourcePark
+  );
 
   const list = $("allRideList");
   list.innerHTML = "";
@@ -1141,6 +1309,11 @@ function renderCustomRidePicker() {
   for (const ride of rides) {
     const selectedIndex = customRideIndex(activeCustomListId, ride.parkId, ride.name);
     const isSelected = selectedIndex !== -1;
+    const isParkStatus = Shared.isParkStatusItem(ride);
+    const label = isParkStatus
+      ? isSelected ? "Park Status" : "[Add Park Status]"
+      : ride.name;
+    const title = isParkStatus ? "Park Status" : ride.name;
 
     const row = document.createElement("div");
     row.className = isSelected
@@ -1152,8 +1325,8 @@ function renderCustomRidePicker() {
         ${isSelected ? "★" : "☆"}
       </button>
 
-      <span class="ride-name" title="${escapeHtml(ride.name)}">
-        ${escapeHtml(ride.name)}
+      <span class="ride-name" title="${escapeHtml(title)}">
+        ${escapeHtml(label)}
       </span>
 
       <span></span>
@@ -1180,29 +1353,15 @@ function renderCustomRidePicker() {
 }
 
 function customRideIndex(customId, parkId, rideName) {
-  const rides = state.customParkRides[customId] || [];
-
-  return rides.findIndex((ride) =>
-    String(ride.parkId) === String(parkId) &&
-    ride.rideName === rideName
-  );
+  return Shared.customRideIndex(state, customId, parkId, rideName);
 }
 
 function toggleCustomRide(customId, ride) {
-  const rides = state.customParkRides[customId] || [];
-  const index = customRideIndex(customId, ride.parkId, ride.name);
-
-  if (index === -1) {
-    rides.push({
-      parkId: String(ride.parkId),
-      parkName: ride.parkName,
-      rideName: ride.name
-    });
-  } else {
-    rides.splice(index, 1);
+  const wasSelected = customRideIndex(customId, ride.parkId, ride.name) !== -1;
+  Shared.toggleCustomRide(state, customId, ride);
+  if (!wasSelected && draftCustomListId === customId) {
+    draftCustomListChanged = true;
   }
-
-  state.customParkRides[customId] = rides;
   saveState();
 }
 
@@ -1235,23 +1394,32 @@ function renderCustomRideOrder() {
     const row = document.createElement("div");
     row.className = "order-row";
 
-    const isDivider = ride.type === "divider";
+    const isDivider = Shared.isDividerItem(ride);
+    const isParkStatus = Shared.isParkStatusItem(ride);
+    const parkName = ride.parkName || `Park ${ride.parkId}`;
+    const rideName = isDivider
+      ? "-- Divider --"
+      : isParkStatus
+        ? parkName
+        : ride.rideName;
 
     row.innerHTML = `
-      <button class="small-btn" title="Remove">✕</button>
+      <button class="small-btn" title="Remove">&times;</button>
 
-      <span class="ride-name" title="${escapeHtml(isDivider ? "── Divider ──" : ride.rideName)}">
-        ${isDivider ? "── Divider ──" : escapeHtml(ride.rideName)}
+      <span class="ride-name" title="${escapeHtml(rideName)}">
+        ${escapeHtml(rideName)}
         ${
           isDivider
             ? `<span class="ride-source">Custom divider</span>`
-            : `<span class="ride-source" title="${escapeHtml(ride.parkName || `Park ${ride.parkId}`)}">
-                ${escapeHtml(ride.parkName || `Park ${ride.parkId}`)}
+            : isParkStatus
+              ? `<span class="ride-source">Park Status</span>`
+            : `<span class="ride-source" title="${escapeHtml(parkName)}">
+                ${escapeHtml(parkName)}
               </span>`
         }
       </span>
 
-      <button class="icon-btn drag-handle" title="Drag to reorder">☰</button>
+      <button class="icon-btn drag-handle" title="Drag to reorder">&#9776;</button>
     `;
 
     const deleteBtn = row.querySelector(".small-btn");
@@ -1295,6 +1463,10 @@ function renderCustomRideOrder() {
       title: "Divider"
     });
 
+    if (draftCustomListId === activeCustomListId) {
+      draftCustomListChanged = true;
+    }
+
     state.customParkRides[activeCustomListId] = rides;
     saveState();
     renderCustomRideOrder();
@@ -1308,39 +1480,13 @@ function renderCustomRideOrder() {
 
   resizePanelSoon();
 }
-
 function setHomePark(park) {
-  state.homeParkId = park.id;
-  state.currentParkId = park.id;
-  state.parkNamesById[park.id] = park.name;
-
-  if (!state.favoriteParkIds.includes(park.id)) {
-    state.favoriteParkIds.push(park.id);
-  }
-
-  if (!state.parkOrder.includes(park.id)) {
-    state.parkOrder.push(park.id);
-  }
-
+  Shared.setHomePark(state, park);
   saveState();
 }
 
 function toggleFavoritePark(park) {
-  const id = park.id;
-  state.parkNamesById[id] = park.name;
-
-  if (state.favoriteParkIds.includes(id)) {
-    state.favoriteParkIds = state.favoriteParkIds.filter((parkId) => parkId !== id);
-    state.parkOrder = state.parkOrder.filter((parkId) => parkId !== id);
-
-    if (state.homeParkId === id) state.homeParkId = null;
-    if (state.currentParkId === id) state.currentParkId = state.parkOrder[0] || null;
-  } else {
-    state.favoriteParkIds.push(id);
-    state.parkOrder.push(id);
-    state.currentParkId = id;
-  }
-
+  Shared.toggleFavoritePark(state, park);
   saveState();
 }
 
@@ -1372,14 +1518,14 @@ function renderCyclePreview() {
 
   rideList.innerHTML = previewItems
     .map((item) => {
-      if (item?.type === "divider") {
+      if (Shared.isDividerItem(item)) {
         return `<div class="custom-ride-divider"></div>`;
       }
 
       const name =
         typeof item === "string"
           ? item
-          : item?.rideName || item?.name || "Unknown";
+          : Shared.standardItemName(item) || item?.name || "Unknown";
 
       return `
         <div class="ride">
@@ -1433,7 +1579,7 @@ function moveItem(array, from, to) {
   array.splice(to, 0, item);
 }
 
-function makeRowDraggable(row, handle, array, index, onReorder) {
+function makeRowDraggable(row, handle, array, index, onReorder, options = {}) {
   if (!row || !handle) return;
 
   handle.addEventListener("pointerdown", (event) => {
@@ -1446,6 +1592,7 @@ function makeRowDraggable(row, handle, array, index, onReorder) {
 
     const startIndex = index;
     let targetIndex = index;
+    let lastClientY = event.clientY;
     const pointerOffsetY = event.clientY - rowRect.top;
     let autoScrollFrame = null;
     let autoScrollSpeed = 0;
@@ -1521,7 +1668,10 @@ function makeRowDraggable(row, handle, array, index, onReorder) {
         const distance = rect.top + threshold - clientY;
         autoScrollSpeed = -Math.min(maxSpeed, Math.ceil(distance / 4));
         startAutoScroll();
-      } else if (clientY > rect.bottom - threshold) {
+      } else if (
+        clientY > rect.bottom - threshold &&
+        (!options.boundToDraggableSection || targetIndex < draggableRows().length)
+      ) {
         const distance = clientY - (rect.bottom - threshold);
         autoScrollSpeed = Math.min(maxSpeed, Math.ceil(distance / 4));
         startAutoScroll();
@@ -1535,6 +1685,17 @@ function makeRowDraggable(row, handle, array, index, onReorder) {
 
       const tick = () => {
         if (!scrollContainer || autoScrollSpeed === 0) {
+          stopAutoScroll();
+          return;
+        }
+
+        movePlaceholder(lastClientY);
+
+        if (
+          options.boundToDraggableSection &&
+          autoScrollSpeed > 0 &&
+          targetIndex >= draggableRows().length
+        ) {
           stopAutoScroll();
           return;
         }
@@ -1556,9 +1717,10 @@ function makeRowDraggable(row, handle, array, index, onReorder) {
     }
 
     function onPointerMove(moveEvent) {
-      moveGhost(moveEvent.clientY);
-      movePlaceholder(moveEvent.clientY);
-      updateAutoScroll(moveEvent.clientY);
+      lastClientY = moveEvent.clientY;
+      moveGhost(lastClientY);
+      movePlaceholder(lastClientY);
+      updateAutoScroll(lastClientY);
     }
 
     function onPointerUp() {
@@ -1585,12 +1747,7 @@ function makeRowDraggable(row, handle, array, index, onReorder) {
 }
 
 function escapeHtml(value) {
-  return String(value)
-    .replaceAll("&", "&amp;")
-    .replaceAll("<", "&lt;")
-    .replaceAll(">", "&gt;")
-    .replaceAll('"', "&quot;")
-    .replaceAll("'", "&#039;");
+  return Shared.escapeHtml(value);
 }
 
 function closeHomeContextMenu() {
@@ -1604,6 +1761,67 @@ function showHomeContextMenu(x, y) {
   menu.style.left = `${Math.min(x, window.innerWidth - 155)}px`;
   menu.style.top = `${Math.min(y, window.innerHeight - 40)}px`;
   menu.classList.remove("hidden");
+}
+
+function clearSettingsLongPress() {
+  clearTimeout(settingsLongPressTimer);
+  settingsLongPressTimer = null;
+}
+
+async function configureCurrentPark() {
+  const id = currentParkId();
+  if (!id) return;
+
+  setNavigationReturnTarget("home");
+
+  if (isCustomParkId(id)) {
+    showCustomRideMenu(id);
+    return;
+  }
+
+  showView("ridePicker");
+  await loadRidePicker();
+  $("rideFilter").focus();
+}
+
+function startSettingsLongPress(event) {
+  settingsLongPressRecognized = false;
+  settingsLongPressStartX = event.clientX;
+  settingsLongPressStartY = event.clientY;
+  clearSettingsLongPress();
+
+  settingsLongPressTimer = setTimeout(() => {
+    settingsLongPressRecognized = true;
+    clearSettingsLongPress();
+    configureCurrentPark();
+  }, 700);
+}
+
+function cancelSettingsLongPress() {
+  clearSettingsLongPress();
+}
+
+function moveSettingsLongPress(event) {
+  if (!settingsLongPressTimer) return;
+
+  const deltaX = event.clientX - settingsLongPressStartX;
+  const deltaY = event.clientY - settingsLongPressStartY;
+
+  if (Math.hypot(deltaX, deltaY) > 12) {
+    cancelSettingsLongPress();
+  }
+}
+
+function handleSettingsTap(event) {
+  if (settingsLongPressRecognized) {
+    event.preventDefault();
+    event.stopPropagation();
+    settingsLongPressRecognized = false;
+    return;
+  }
+
+  setNavigationReturnTarget(null);
+  loadParkPicker();
 }
 
 function resetDeleteCustomListButton() {
@@ -1621,6 +1839,8 @@ function resetDeleteCustomListButton() {
 function deleteCustomList(id) {
   const park = customParkById(id);
   if (!park) return;
+
+  clearDraftCustomList(id);
 
   state.customParks = state.customParks.filter(
     (customPark) => customPark.id !== id
@@ -1656,7 +1876,12 @@ function deleteCustomList(id) {
 
 $("parkTitle").addEventListener("dblclick", fitHomePanelToContent);
 
-$("settingsBtn").addEventListener("click", loadParkPicker);
+$("settingsBtn").addEventListener("pointerdown", startSettingsLongPress);
+$("settingsBtn").addEventListener("pointermove", moveSettingsLongPress);
+$("settingsBtn").addEventListener("pointerup", cancelSettingsLongPress);
+$("settingsBtn").addEventListener("pointerleave", cancelSettingsLongPress);
+$("settingsBtn").addEventListener("pointercancel", cancelSettingsLongPress);
+$("settingsBtn").addEventListener("click", handleSettingsTap);
 
 $("refreshBtn").addEventListener("click", async () => {
   const btn = $("refreshBtn");
@@ -1709,12 +1934,17 @@ $("ridePickerBackBtn").addEventListener("click", () => {
     return;
   }
 
+  if (consumeNavigationReturnTarget() === "home") {
+    returnToHomeView();
+    return;
+  }
+
   showView("parkPicker");
   renderParkPicker();
 });
 
-$("parkFilter").addEventListener("input", renderParkPicker);
-$("rideFilter").addEventListener("input", renderRidePicker);
+bindFilterClear("parkFilter", renderParkPicker);
+bindFilterClear("rideFilter", renderRidePicker);
 
 $("homeBtn").addEventListener("click", goHomePark);
 
@@ -1744,12 +1974,13 @@ $("customSourceParkBackBtn").addEventListener("click", () => {
   }
 });
 
-$("customSourceParkFilter").addEventListener("input", renderCustomSourceParkPicker);
+bindFilterClear("customSourceParkFilter", renderCustomSourceParkPicker);
 
 $("customRideMenuBackBtn").addEventListener("click", () => {
-  showView("parkPicker");
-  renderParkPicker();
+  leaveCustomRideMenu();
 });
+
+$("customRideMenuTitle").addEventListener("click", startCustomMenuTitleRename);
 
 $("customAddRidesBtn").addEventListener("click", () => {
   const id = currentParkId();

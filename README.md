@@ -1,76 +1,102 @@
 # Queue Panel
 
-![Queue Panel Main Dashboard](assets/screenshot-home-custom-list-1.png)
+![Queue Panel Main Dashboard](assets/Screenshot_WDW_Queue_Panel.png)
 
-Queue Panel is a lightweight desktop tray application for monitoring theme park wait times using Queue-Times.com data.
+Queue Panel is a lightweight application for monitoring live theme park wait times using Queue-Times.com data.
 
-Track individual parks, create custom ride lists, organize and reorder attractions, and keep your favorite rides only a click away from your desktop.
+Whether you're planning your next theme park trip, checking wait times during your visit, or monitoring your favorite rides across multiple parks, Queue Panel provides a clean, customizable interface focused on the attractions that matter most to you.
+
+Originally developed as a Windows desktop tray application, Queue Panel now includes a native Android app built from the same shared codebase, providing a consistent experience across desktop and mobile devices.
 
 ## Features
 
-- Real-time ride wait times
-- Multiple park support
-- Favorite parks
-- Favorite rides
-- Custom ride lists
-- Custom ride list dividers
-- Ride list reordering
-- Park filtering
-- Ride filtering
-- Park operating-hours tooltips
-- Color-coded wait times
-- Compact desktop tray integration
-- Powered by Queue-Times.com data
+- View live ride wait times
+- Show only your favorite parks
+- Show only your favorite rides
+- Reorder parks with drag and drop
+- Reorder rides with drag and drop
+- Build custom ride lists spanning multiple parks on a single screen
+- Organize rides with custom dividers
+- Quickly switch between favorite parks
+- Set a home park for instant navigation
+- View park operating hours
+- Color-coded wait times for at-a-glance viewing
+- No account required
 
 ## Screenshots
 
-### Customized Organization for Single Parks (Epic Universe)
+### Customized Organization for Single Parks (Busch Gardens Tampa)
 
-![Epic Universe](assets/screenshot-home-standard-park-2.png)
+![Busch Gardens home screen](assets/Screenshot_BGT1_Queue_Panel_Mobile.png)
+![Busch Gardens ride management](assets/Screenshot_BGT2_Queue_Panel_Mobile.png)
 
 Organize attractions with custom dividers based on park, theme, ride type, manufacturer, or any category you choose.
 
-### Custom Ride List for Multiple Parks (Walt Disney World Resort)
+### Custom Ride List Spanning Multiple Parks (Florida Coaster Summary)
 
-![Walt Disney World Resort](assets/screenshot-home-custom-list-2.png)
+![Florida Coaster Summary](assets/Screenshot_FLsumm1_Queue_Panel_Mobile.png)
+![Manage Florida Coaster Summary](assets/Screenshot_FLsumm2_Queue_Panel_Mobile.png)
 
 Create custom ride lists that combine attractions from multiple parks into a single dashboard for quick comparison.
 
 ## Installation
 
-### Download Release
+### Windows
 
-Download the latest installer from the GitHub Releases page and run the installer.
+Download the latest Windows installer from the GitHub Releases page.
 
-### Run from Source
+Alternatively, build from source:
 
-Install dependencies:
-
+```bash
 npm install
-
-Start the application:
-
 npm start
+```
 
-### Build Executable
+To build a distributable installer:
 
-Create a distributable installer:
-
+```bash
 npm run dist
+```
+
+### Android
+
+Queue Panel is available as a native Android application built with Capacitor.
+
+**GitHub Releases**
+
+Download the latest APK from the GitHub Releases page.
+
+**Build from Source**
+
+Install Java (JDK 17 or later), Android Studio, and project dependencies:
+
+```bash
+npm install
+```
+
+Sync the web assets:
+
+```bash
+npm run android:sync
+```
+
+Open the Android project:
+
+```bash
+npm run android:open
+```
+
+Build and run the app using Android Studio or Gradle.
 
 ## Data Source
 
-Queue Panel uses data provided by Queue-Times.com.
-
-Powered by Queue-Times.com
-
-https://queue-times.com
+Queue Panel uses live ride wait-time data provided by Queue-Times.com.
 
 ## Disclaimer
 
-Queue Panel is an unofficial desktop companion application and is not affiliated with Queue-Times.com, Disney, Universal, SeaWorld, Six Flags, Cedar Fair, or any other theme park operator.
+Queue Panel is not affiliated with Queue-Times.com, Disney, Universal, SeaWorld, Six Flags, Cedar Fair, or any other theme park operator.
 
-All ride wait-time data remains the property of its respective source.
+Ride wait-time data remains the property of its respective source.
 
 ## License
 

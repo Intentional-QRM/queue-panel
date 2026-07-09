@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Queue Panel Mobile</title>
+  <link rel="stylesheet" href="mobile.css" />
+</head>
+<body>
+  <div class="app">
+    <div id="mainView">
+      <div class="header home-header">
+        <button id="homeBtn" class="icon-btn home-btn" title="Go to home park">&#8962;</button>
+        <span id="parkTitle" class="title">No park selected</span>
+        <button id="settingsBtn" class="icon-btn home-btn" title="Park list">&#9881;</button>
+      </div>
+
+      <a id="sourceStatus" class="source-line" href="#">
+        Powered by Queue-Times.com
+      </a>
+
+      <div id="pullRefreshStatus" class="pull-refresh-status">Pull to refresh</div>
+      <div class="header-divider"></div>
+      <div id="rideList" class="ride-list"></div>
+    </div>
+
+    <div id="parkPickerView" class="hidden">
+      <div class="header">
+        <button id="parkPickerBackBtn" class="icon-btn">&#8592;</button>
+        <span class="title">Parks</span>
+        <span></span>
+      </div>
+
+      <div class="filter-control">
+        <input id="parkFilter" type="text" placeholder="Filter parks..." />
+        <button id="parkFilterClear" class="filter-clear-btn hidden" type="button" title="Clear filter">&times;</button>
+      </div>
+      <div id="allParkList" class="scroll-list"></div>
+    </div>
+
+    <div id="customRideMenuView" class="hidden">
+      <div class="header">
+        <button id="customRideMenuBackBtn" class="icon-btn">&#8592;</button>
+        <span id="customRideMenuTitle" class="title"></span>
+        <span></span>
+      </div>
+
+      <div id="customAddRidesBtn" class="picker-row custom-menu-row">
+        <span class="menu-label">Add Rides</span>
+        <span class="row-actions"><span class="menu-arrow">&rsaquo;</span></span>
+      </div>
+
+      <div id="customReorderRidesBtn" class="picker-row custom-menu-row">
+        <span class="menu-label">Manage Ride List</span>
+        <span class="row-actions"><span class="menu-arrow">&rsaquo;</span></span>
+      </div>
+
+      <div id="customDeleteListBtn" class="picker-row custom-menu-row">
+        <span class="menu-label">Delete Custom Ride List</span>
+        <span></span>
+      </div>
+    </div>
+
+    <div id="customSourceParkPickerView" class="hidden">
+      <div class="header">
+        <button id="customSourceParkBackBtn" class="icon-btn">&#8592;</button>
+        <span id="customSourceParkTitle" class="title">Choose Source Park</span>
+        <span></span>
+      </div>
+
+      <div class="filter-control">
+        <input id="customSourceParkFilter" type="text" placeholder="Filter parks..." />
+        <button id="customSourceParkFilterClear" class="filter-clear-btn hidden" type="button" title="Clear filter">&times;</button>
+      </div>
+      <div id="customSourceParkList" class="scroll-list"></div>
+    </div>
+
+    <div id="customRideOrderView" class="hidden">
+      <div class="header">
+        <button id="customRideOrderBackBtn" class="icon-btn">&#8592;</button>
+        <span id="customRideOrderTitle" class="title">Manage Ride List</span>
+        <span></span>
+      </div>
+
+      <div id="customRideOrderList" class="scroll-list"></div>
+    </div>
+
+    <div id="ridePickerView" class="hidden">
+      <div class="header">
+        <button id="ridePickerBackBtn" class="icon-btn">&#8592;</button>
+        <span id="ridePickerTitle" class="title">Favorite Rides</span>
+        <span></span>
+      </div>
+
+      <div class="filter-control">
+        <input id="rideFilter" type="text" placeholder="Filter rides..." />
+        <button id="rideFilterClear" class="filter-clear-btn hidden" type="button" title="Clear filter">&times;</button>
+      </div>
+      <div id="allRideList" class="scroll-list"></div>
+    </div>
+
+    <div id="homeConfirmOverlay" class="sheet-overlay hidden">
+      <div class="bottom-sheet">
+        <div id="homeConfirmText" class="sheet-message"></div>
+        <div class="sheet-actions">
+          <button id="homeConfirmCancelBtn" class="sheet-btn" type="button">Cancel</button>
+          <button id="homeConfirmSetBtn" class="sheet-btn primary" type="button">Set Home</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="toast" class="toast hidden"></div>
+  </div>
+
+  <script src="capacitor.js"></script>
+  <script src="capacitor-http.js"></script>
+  <script src="shared/queue-panel-shared.js"></script>
+  <script src="mobile.js"></script>
+</body>
+</html>
