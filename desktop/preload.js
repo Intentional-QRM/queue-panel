@@ -8,5 +8,9 @@ contextBridge.exposeInMainWorld("electronAPI", {
 
   onGoToPark: (callback) => {
     ipcRenderer.on("go-to-park", (event, parkId) => callback(parkId));
+  },
+
+  onShowPage: (callback) => {
+    ipcRenderer.on("show-page", (event, page) => callback(page));
   }
 });

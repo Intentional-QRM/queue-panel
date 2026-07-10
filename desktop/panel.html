@@ -551,6 +551,64 @@
     box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
   }
 
+  .settings-section {
+    margin-bottom: 14px;
+  }
+
+  .settings-heading,
+  .about-heading {
+    color: #7f9fc4;
+    font-size: 12px;
+    font-weight: 600;
+    margin: 0 0 6px 0;
+  }
+
+  .option-group {
+    display: grid;
+    gap: 5px;
+  }
+
+  .option-row {
+    background: #2b2b2b;
+    border: 1px solid #3f3f3f;
+    color: #fff;
+    padding: 7px 8px;
+    text-align: left;
+    font-size: 14px;
+    cursor: pointer;
+  }
+
+  .option-row:hover {
+    background: #3a3a3a;
+    color: #ffb300;
+  }
+
+  .about-content {
+    padding-top: 12px;
+    text-align: center;
+  }
+
+  .about-title {
+    color: #fff;
+    font-size: 16px;
+    font-weight: 700;
+    margin-bottom: 8px;
+  }
+
+  .about-version {
+    margin-bottom: 18px;
+  }
+
+  .about-link {
+    display: block;
+    color: #7f9fc4;
+    text-decoration: none;
+  }
+
+  .about-link:hover {
+    color: #ffb300;
+  }
+
 </style>
 </head>
 
@@ -663,6 +721,54 @@
       <button id="rideFilterClear" class="filter-clear-btn hidden" type="button" title="Clear filter">&times;</button>
     </div>
     <div id="allRideList" class="scroll-list"></div>
+  </div>
+
+  <div id="settingsView" class="hidden">
+    <div class="header">
+      <button id="settingsBackBtn" class="icon-btn">&#8592;</button>
+      <span class="title">Settings</span>
+      <span></span>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-heading">Theme</div>
+      <div class="option-group">
+        <button class="option-row" type="button">Light</button>
+        <button class="option-row" type="button">Dark</button>
+        <button class="option-row" type="button">System</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-heading">Time format</div>
+      <div class="option-group">
+        <button class="option-row" type="button">12-hour</button>
+        <button class="option-row" type="button">24-hour</button>
+      </div>
+    </div>
+
+    <div class="settings-section">
+      <div class="settings-heading">Font size</div>
+      <div class="option-group">
+        <button class="option-row" type="button">Small</button>
+        <button class="option-row" type="button">Medium</button>
+        <button class="option-row" type="button">Large</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="aboutView" class="hidden">
+    <div class="header">
+      <button id="aboutBackBtn" class="icon-btn">&#8592;</button>
+      <span class="title">About</span>
+      <span></span>
+    </div>
+
+    <div class="about-content">
+      <div id="aboutAppName" class="about-title">Queue Panel</div>
+      <div id="aboutVersion" class="muted about-version">Version</div>
+      <a id="aboutQueueTimesLink" class="about-link" href="#">Powered by Queue-Times.com</a>
+    </div>
   </div>
 
   <script src="../shared/queue-panel-shared.js"></script>

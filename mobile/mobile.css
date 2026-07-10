@@ -105,6 +105,47 @@ body {
   color: #ffb300;
 }
 
+.overflow-btn {
+  user-select: none;
+  -webkit-user-select: none;
+  -webkit-touch-callout: none;
+  touch-action: manipulation;
+}
+
+.overflow-menu {
+  position: absolute;
+  top: 48px;
+  right: 14px;
+  z-index: 40;
+  min-width: 116px;
+  background: #252525;
+  border: 1px solid #555;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+  padding: 4px;
+}
+
+.overflow-menu button {
+  width: 100%;
+  background: transparent;
+  border: none;
+  color: #fff;
+  cursor: pointer;
+  padding: 10px 10px;
+  text-align: left;
+  font-size: 14px;
+}
+
+.overflow-menu-divider {
+  height: 1px;
+  margin: 5px -4px;
+  background: #555;
+}
+
+.overflow-menu button:active {
+  background: #3a3a3a;
+  color: #ffb300;
+}
+
 .source-line {
   display: block;
   color: #7f9fc4;
@@ -316,6 +357,61 @@ input:focus {
 
 .custom-order-add-divider-row {
   min-height: 54px;
+}
+
+.settings-section {
+  margin-bottom: 16px;
+}
+
+.settings-heading,
+.about-heading {
+  color: #7f9fc4;
+  font-size: 13px;
+  font-weight: 600;
+  margin: 0 0 7px 0;
+}
+
+.option-group {
+  display: grid;
+  gap: 6px;
+}
+
+.option-row {
+  background: #2b2b2b;
+  border: 1px solid #3f3f3f;
+  color: #fff;
+  padding: 10px 10px;
+  text-align: left;
+  font-size: 15px;
+  cursor: pointer;
+}
+
+.option-row:active {
+  background: #3a3a3a;
+  color: #ffb300;
+}
+
+.about-content {
+  padding-top: 18px;
+  text-align: center;
+}
+
+.about-title {
+  color: #fff;
+  font-size: 17px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.about-version {
+  margin-bottom: 22px;
+}
+
+.about-link {
+  display: block;
+  color: #7f9fc4;
+  text-decoration: none;
+  padding: 9px 0;
 }
 
 .small-btn {

@@ -28,7 +28,13 @@
       <div class="header">
         <button id="parkPickerBackBtn" class="icon-btn">&#8592;</button>
         <span class="title">Parks</span>
-        <span></span>
+        <button id="parkOverflowBtn" class="icon-btn overflow-btn" type="button" title="More options">&#8942;</button>
+      </div>
+
+      <div id="parkOverflowMenu" class="overflow-menu hidden">
+        <button id="parkSettingsMenuBtn" type="button">Settings</button>
+        <div class="overflow-menu-divider"></div>
+        <button id="parkAboutMenuBtn" type="button">About</button>
       </div>
 
       <div class="filter-control">
@@ -97,6 +103,54 @@
         <button id="rideFilterClear" class="filter-clear-btn hidden" type="button" title="Clear filter">&times;</button>
       </div>
       <div id="allRideList" class="scroll-list"></div>
+    </div>
+
+    <div id="settingsView" class="hidden">
+      <div class="header">
+        <button id="settingsBackBtn" class="icon-btn">&#8592;</button>
+        <span class="title">Settings</span>
+        <span></span>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-heading">Theme</div>
+        <div class="option-group">
+          <button class="option-row" type="button">Light</button>
+          <button class="option-row" type="button">Dark</button>
+          <button class="option-row" type="button">System</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-heading">Time format</div>
+        <div class="option-group">
+          <button class="option-row" type="button">12-hour</button>
+          <button class="option-row" type="button">24-hour</button>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <div class="settings-heading">Font size</div>
+        <div class="option-group">
+          <button class="option-row" type="button">Small</button>
+          <button class="option-row" type="button">Medium</button>
+          <button class="option-row" type="button">Large</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="aboutView" class="hidden">
+      <div class="header">
+        <button id="aboutBackBtn" class="icon-btn">&#8592;</button>
+        <span class="title">About</span>
+        <span></span>
+      </div>
+
+      <div class="about-content">
+        <div id="aboutAppName" class="about-title">Queue Panel</div>
+        <div id="aboutVersion" class="muted about-version">Version</div>
+        <a id="aboutQueueTimesLink" class="about-link" href="#">Powered by Queue-Times.com</a>
+      </div>
     </div>
 
     <div id="homeConfirmOverlay" class="sheet-overlay hidden">

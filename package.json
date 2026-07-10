@@ -1,6 +1,6 @@
 {
   "name": "queue-panel",
-  "version": "1.2.0",
+  "version": "1.3.0",
   "description": "Desktop tray application for theme park wait times powered by Queue-Times.com",
   "main": "desktop/main.js",
   "scripts": {
@@ -36,6 +36,7 @@
   "dependencies": {
     "@capacitor/android": "^8.4.1",
     "@capacitor/app": "^8.1.0",
+    "@capacitor/browser": "^8.0.3",
     "@capacitor/cli": "^8.4.1",
     "@capacitor/core": "^8.4.1",
     "@capacitor/haptics": "^8.0.2"

@@ -10,6 +10,14 @@
     customParkRides: {}
   };
 
+  const APP_METADATA = {
+    name: "Queue Panel",
+    version: "1.3.0",
+    build: "1",
+    repositoryUrl: "https://github.com/Intentional-QRM/queue-panel",
+    queueTimesUrl: "https://queue-times.com"
+  };
+
   function loadState(storage, storageKey) {
     try {
       return {
@@ -564,6 +572,7 @@
   }
 
   window.QueuePanelShared = {
+    APP_METADATA,
     DEFAULT_STATE,
     loadState,
     normalizeState,

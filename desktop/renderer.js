@@ -37,7 +37,9 @@ const views = {
   customRideMenu: $("customRideMenuView"),
   customSourceParkPicker: $("customSourceParkPickerView"),
   customRideOrder: $("customRideOrderView"),
-  ridePicker: $("ridePickerView")
+  ridePicker: $("ridePickerView"),
+  settings: $("settingsView"),
+  about: $("aboutView")
 };
 
 function loadState() {
@@ -155,6 +157,22 @@ function returnToHomeView() {
       setTimeout(updateRideListScrollState, 50);
     }, 0);
   }
+}
+
+function showSettingsPage() {
+  showView("settings");
+}
+
+function showAboutPage() {
+  const metadata = Shared.APP_METADATA;
+  $("aboutAppName").textContent = metadata.name;
+  $("aboutVersion").textContent = `Version ${metadata.version}`;
+  $("aboutQueueTimesLink").href = metadata.queueTimesUrl;
+  showView("about");
+}
+
+async function returnToParkPicker() {
+  await loadParkPicker();
 }
 
 function syncFilterClearButton(inputId) {
@@ -286,7 +304,9 @@ function resizePanelSoon(delay = 0) {
         !views.customRideMenu.classList.contains("hidden") ||
         !views.customSourceParkPicker.classList.contains("hidden") ||
         !views.customRideOrder.classList.contains("hidden") ||
-        !views.ridePicker.classList.contains("hidden");
+        !views.ridePicker.classList.contains("hidden") ||
+        !views.settings.classList.contains("hidden") ||
+        !views.about.classList.contains("hidden");
 
       if (isManagementView) {
         window.electronAPI?.resizePanel?.(MANAGEMENT_PANEL_HEIGHT);
@@ -1914,6 +1934,14 @@ $("sourceStatus").addEventListener("click", (event) => {
   window.electronAPI?.openExternal?.(url);
 });
 
+$("settingsBackBtn").addEventListener("click", returnToParkPicker);
+$("aboutBackBtn").addEventListener("click", returnToParkPicker);
+
+$("aboutQueueTimesLink").addEventListener("click", (event) => {
+  event.preventDefault();
+  window.electronAPI?.openExternal?.($("aboutQueueTimesLink").href);
+});
+
 $("parkPickerBackBtn").addEventListener("click", () => {
   showView("main");
   loadWaitTimes();
@@ -2057,6 +2085,17 @@ window.electronAPI?.onGoToPark?.(async (parkId) => {
   setTimeout(() => {
     fitHomePanelToContent();
   }, 50);
+});
+
+window.electronAPI?.onShowPage?.((page) => {
+  if (page === "settings") {
+    showSettingsPage();
+    return;
+  }
+
+  if (page === "about") {
+    showAboutPage();
+  }
 });
 
 startSourceTimer();

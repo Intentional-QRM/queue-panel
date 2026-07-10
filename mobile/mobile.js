@@ -54,7 +54,9 @@ const views = {
   customRideMenu: $("customRideMenuView"),
   customSourceParkPicker: $("customSourceParkPickerView"),
   customRideOrder: $("customRideOrderView"),
-  ridePicker: $("ridePickerView")
+  ridePicker: $("ridePickerView"),
+  settings: $("settingsView"),
+  about: $("aboutView")
 };
 
 function saveState() {
@@ -64,6 +66,7 @@ function saveState() {
 function showView(name) {
   Object.values(views).forEach((view) => view.classList.add("hidden"));
   views[name].classList.remove("hidden");
+  closeParkOverflowMenu();
 }
 
 function currentViewName() {
@@ -79,6 +82,10 @@ function capacitorHapticsPlugin() {
   return window.Capacitor?.Plugins?.Haptics || window.CapacitorHaptics;
 }
 
+function capacitorBrowserPlugin() {
+  return window.Capacitor?.Plugins?.Browser || window.CapacitorBrowser;
+}
+
 function triggerLongPressHaptic() {
   const haptics = capacitorHapticsPlugin();
 
@@ -88,6 +95,18 @@ function triggerLongPressHaptic() {
   }
 
   navigator.vibrate?.(20);
+}
+
+function openExternalUrl(url) {
+  const browser = capacitorBrowserPlugin();
+  const fallback = () => window.open(url, "_blank", "noopener");
+
+  if (window.Capacitor?.isNativePlatform?.() && browser?.open) {
+    browser.open({ url }).catch(fallback);
+    return;
+  }
+
+  fallback();
 }
 
 function setNavigationReturnTarget(target) {
@@ -103,6 +122,31 @@ function consumeNavigationReturnTarget() {
 function returnToHomeView() {
   showView("main");
   loadWaitTimes();
+}
+
+function closeParkOverflowMenu() {
+  $("parkOverflowMenu")?.classList.add("hidden");
+}
+
+function toggleParkOverflowMenu() {
+  $("parkOverflowMenu")?.classList.toggle("hidden");
+}
+
+function showSettingsPage() {
+  showView("settings");
+}
+
+function showAboutPage() {
+  const metadata = Shared.APP_METADATA;
+  $("aboutAppName").textContent = metadata.name;
+  $("aboutVersion").textContent = `Version ${metadata.version}`;
+  $("aboutQueueTimesLink").href = metadata.queueTimesUrl;
+  showView("about");
+}
+
+function returnToParkPicker() {
+  showView("parkPicker");
+  renderParkPicker();
 }
 
 function syncFilterClearButton(inputId) {
@@ -1652,6 +1696,11 @@ function closeTopPopup() {
     return true;
   }
 
+  if (!$("parkOverflowMenu").classList.contains("hidden")) {
+    closeParkOverflowMenu();
+    return true;
+  }
+
   return false;
 }
 
@@ -1681,6 +1730,10 @@ function handleNativeBackButton() {
     case "customRideOrder":
       handleCustomRideOrderBack();
       break;
+    case "settings":
+    case "about":
+      returnToParkPicker();
+      break;
     default:
       minimizeAndroidApp();
       break;
@@ -1703,6 +1756,18 @@ $("settingsBtn").addEventListener("pointerleave", cancelSettingsLongPress);
 $("settingsBtn").addEventListener("pointercancel", cancelSettingsLongPress);
 $("settingsBtn").addEventListener("click", handleSettingsTap);
 $("parkPickerBackBtn").addEventListener("click", handleParkPickerBack);
+$("parkOverflowBtn").addEventListener("click", (event) => {
+  event.stopPropagation();
+  toggleParkOverflowMenu();
+});
+$("parkSettingsMenuBtn").addEventListener("click", () => {
+  closeParkOverflowMenu();
+  showSettingsPage();
+});
+$("parkAboutMenuBtn").addEventListener("click", () => {
+  closeParkOverflowMenu();
+  showAboutPage();
+});
 bindFilterClear("parkFilter", renderParkPicker);
 $("sourceStatus").addEventListener("click", (event) => {
   if ($("sourceStatus").getAttribute("href") === "#") event.preventDefault();
@@ -1722,6 +1787,14 @@ $("homeConfirmOverlay").addEventListener("click", (event) => {
   if (event.target === $("homeConfirmOverlay")) {
     hideHomeConfirmSheet();
   }
+});
+
+$("settingsBackBtn").addEventListener("click", returnToParkPicker);
+$("aboutBackBtn").addEventListener("click", returnToParkPicker);
+
+$("aboutQueueTimesLink").addEventListener("click", (event) => {
+  event.preventDefault();
+  openExternalUrl($("aboutQueueTimesLink").href);
 });
 
 $("customRideMenuBackBtn").addEventListener("click", handleCustomRideMenuBack);
@@ -1752,6 +1825,20 @@ bindFilterClear("customSourceParkFilter", renderCustomSourceParkPicker);
 $("customRideOrderBackBtn").addEventListener("click", handleCustomRideOrderBack);
 $("ridePickerBackBtn").addEventListener("click", handleRidePickerBack);
 bindFilterClear("rideFilter", renderRidePicker);
+
+document.addEventListener("click", (event) => {
+  const menu = $("parkOverflowMenu");
+  if (
+    !menu ||
+    menu.classList.contains("hidden") ||
+    menu.contains(event.target) ||
+    $("parkOverflowBtn").contains(event.target)
+  ) {
+    return;
+  }
+
+  closeParkOverflowMenu();
+});
 
 document.addEventListener("touchstart", (event) => {
   if ($("homeBtn").contains(event.target)) return;

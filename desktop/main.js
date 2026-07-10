@@ -14,6 +14,37 @@ let panelBottomY = null;
 const PANEL_WIDTH = 340;
 const PANEL_BASE_HEIGHT = 510;
 
+function createPanelWindow() {
+  const cursor = screen.getCursorScreenPoint();
+  const display = screen.getDisplayNearestPoint(cursor);
+  const workArea = display.workArea;
+
+  panelBottomY = workArea.y + workArea.height - 8;
+
+  panel = new BrowserWindow({
+    width: PANEL_WIDTH,
+    height: PANEL_BASE_HEIGHT,
+    x: Math.min(cursor.x - PANEL_WIDTH, workArea.x + workArea.width - PANEL_WIDTH - 8),
+    y: panelBottomY - PANEL_BASE_HEIGHT,
+    frame: false,
+    resizable: false,
+    alwaysOnTop: true,
+    skipTaskbar: true,
+    show: false,
+    webPreferences: {
+      preload: path.join(__dirname, "preload.js")
+    }
+  });
+
+  panel.loadFile(path.join(__dirname, "panel.html"));
+
+  panel.on("blur", () => {
+    if (panel && !panel.isDestroyed()) {
+      panel.hide();
+    }
+  });
+}
+
 function createPanel() {
   if (panel && !panel.isDestroyed()) {
     if (panel.isVisible()) {
@@ -25,34 +56,32 @@ function createPanel() {
     return;
   }
 
-const cursor = screen.getCursorScreenPoint();
-const display = screen.getDisplayNearestPoint(cursor);
-const workArea = display.workArea;
+  createPanelWindow();
+}
 
-panelBottomY = workArea.y + workArea.height - 8;
-
-panel = new BrowserWindow({
-  width: PANEL_WIDTH,
-  height: PANEL_BASE_HEIGHT,
-  x: Math.min(cursor.x - PANEL_WIDTH, workArea.x + workArea.width - PANEL_WIDTH - 8),
-  y: panelBottomY - PANEL_BASE_HEIGHT,
-  frame: false,
-  resizable: false,
-  alwaysOnTop: true,
-  skipTaskbar: true,
-  show: false,  
-  webPreferences: {
-    preload: path.join(__dirname, "preload.js")
+function showPanel() {
+  if (!panel || panel.isDestroyed()) {
+    createPanelWindow();
   }
-});
 
-  panel.loadFile(path.join(__dirname, "panel.html"));
+  panel.show();
+  panel.focus();
+}
 
-  panel.on("blur", () => {
+function showPanelPage(page) {
+  showPanel();
+
+  const sendPage = () => {
     if (panel && !panel.isDestroyed()) {
-      panel.hide();
+      panel.webContents.send("show-page", page);
     }
-  });
+  };
+
+  if (panel.webContents.isLoading()) {
+    panel.webContents.once("did-finish-load", sendPage);
+  } else {
+    sendPage();
+  }
 }
 
 ipcMain.on("resize-panel", (event, requestedHeight) => {
@@ -81,7 +110,12 @@ ipcMain.on("resize-panel", (event, requestedHeight) => {
 ipcMain.on("open-external", (event, url) => {
   if (!url || typeof url !== "string") return;
 
-  if (!url.startsWith("https://queue-times.com")) return;
+  const allowedUrls = [
+    "https://queue-times.com",
+    "https://github.com/Intentional-QRM/queue-panel"
+  ];
+
+  if (!allowedUrls.some((allowedUrl) => url.startsWith(allowedUrl))) return;
 
   shell.openExternal(url);
 });
@@ -124,12 +158,21 @@ function rebuildTrayMenu() {
     },
     { type: "separator" },
     {
-      label: "Open Queue Panel",
-      click: createPanel
+      label: "Show Queue Panel",
+      click: showPanel
     },
     {
       label: "Go to Park",
       submenu: parkItems
+    },
+    { type: "separator" },
+    {
+      label: "Settings",
+      click: () => showPanelPage("settings")
+    },
+    {
+      label: "About",
+      click: () => showPanelPage("about")
     },
     { type: "separator" },
     {
