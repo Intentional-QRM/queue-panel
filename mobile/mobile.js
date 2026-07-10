@@ -66,6 +66,30 @@ function showView(name) {
   views[name].classList.remove("hidden");
 }
 
+function currentViewName() {
+  return Object.entries(views)
+    .find(([, view]) => !view.classList.contains("hidden"))?.[0] || "main";
+}
+
+function capacitorAppPlugin() {
+  return window.Capacitor?.Plugins?.App || window.CapacitorApp;
+}
+
+function capacitorHapticsPlugin() {
+  return window.Capacitor?.Plugins?.Haptics || window.CapacitorHaptics;
+}
+
+function triggerLongPressHaptic() {
+  const haptics = capacitorHapticsPlugin();
+
+  if (window.Capacitor?.isNativePlatform?.() && haptics?.impact) {
+    haptics.impact({ style: "LIGHT" }).catch(() => {});
+    return;
+  }
+
+  navigator.vibrate?.(20);
+}
+
 function setNavigationReturnTarget(target) {
   navigationReturnTarget = target;
 }
@@ -1426,11 +1450,12 @@ function showToast(message) {
 
 function showHomeConfirmSheet() {
   const id = currentParkId();
-  if (!id) return;
+  if (!id) return false;
 
   const name = currentParkName();
   $("homeConfirmText").textContent = `Set '${name}' as your Home Park?`;
   $("homeConfirmOverlay").classList.remove("hidden");
+  return true;
 }
 
 function hideHomeConfirmSheet() {
@@ -1479,8 +1504,9 @@ function startHomeLongPress(event) {
   homeLongPressTimer = setTimeout(() => {
     homeLongPressRecognized = true;
     clearHomeLongPress();
-    navigator.vibrate?.(20);
-    showHomeConfirmSheet();
+    if (showHomeConfirmSheet()) {
+      triggerLongPressHaptic();
+    }
   }, 700);
 }
 
@@ -1515,16 +1541,17 @@ function clearSettingsLongPress() {
 
 async function configureCurrentPark() {
   const id = currentParkId();
-  if (!id) return;
+  if (!id) return false;
 
   setNavigationReturnTarget("home");
 
   if (Shared.isCustomParkId(id)) {
     showCustomRideMenu(id);
-    return;
+    return true;
   }
 
   await loadRidePicker(id);
+  return true;
 }
 
 function startSettingsLongPress(event) {
@@ -1536,8 +1563,9 @@ function startSettingsLongPress(event) {
   settingsLongPressTimer = setTimeout(() => {
     settingsLongPressRecognized = true;
     clearSettingsLongPress();
-    navigator.vibrate?.(20);
-    configureCurrentPark();
+    configureCurrentPark().then((didConfigure) => {
+      if (didConfigure) triggerLongPressHaptic();
+    });
   }, 700);
 }
 
@@ -1579,16 +1607,102 @@ function handleHomeTap(event) {
   goHomePark();
 }
 
+function handleParkPickerBack() {
+  returnToHomeView();
+}
+
+function handleCustomRideMenuBack() {
+  leaveCustomRideMenu();
+}
+
+function handleCustomSourceParkBack() {
+  showCustomRideMenu(activeCustomListId);
+}
+
+function handleCustomRideOrderBack() {
+  if (activeCustomListId) {
+    showCustomRideMenu(activeCustomListId);
+    return;
+  }
+
+  showView("parkPicker");
+  renderParkPicker();
+}
+
+function handleRidePickerBack() {
+  if (activeCustomListId && activeCustomSourceParkId) {
+    activeCustomSourceParkId = null;
+    showView("customSourceParkPicker");
+    renderCustomSourceParkPicker();
+    return;
+  }
+
+  if (consumeNavigationReturnTarget() === "home") {
+    returnToHomeView();
+    return;
+  }
+
+  showView("parkPicker");
+  renderParkPicker();
+}
+
+function closeTopPopup() {
+  if (!$("homeConfirmOverlay").classList.contains("hidden")) {
+    hideHomeConfirmSheet();
+    return true;
+  }
+
+  return false;
+}
+
+function minimizeAndroidApp() {
+  const appPlugin = capacitorAppPlugin();
+  if (appPlugin?.minimizeApp) {
+    appPlugin.minimizeApp();
+  }
+}
+
+function handleNativeBackButton() {
+  if (closeTopPopup()) return;
+
+  switch (currentViewName()) {
+    case "parkPicker":
+      handleParkPickerBack();
+      break;
+    case "ridePicker":
+      handleRidePickerBack();
+      break;
+    case "customRideMenu":
+      handleCustomRideMenuBack();
+      break;
+    case "customSourceParkPicker":
+      handleCustomSourceParkBack();
+      break;
+    case "customRideOrder":
+      handleCustomRideOrderBack();
+      break;
+    default:
+      minimizeAndroidApp();
+      break;
+  }
+}
+
+function registerNativeBackButton() {
+  if (!window.Capacitor?.isNativePlatform?.()) return;
+
+  const appPlugin = capacitorAppPlugin();
+  if (!appPlugin?.addListener) return;
+
+  appPlugin.addListener("backButton", handleNativeBackButton);
+}
+
 $("settingsBtn").addEventListener("pointerdown", startSettingsLongPress);
 $("settingsBtn").addEventListener("pointermove", moveSettingsLongPress);
 $("settingsBtn").addEventListener("pointerup", cancelSettingsLongPress);
 $("settingsBtn").addEventListener("pointerleave", cancelSettingsLongPress);
 $("settingsBtn").addEventListener("pointercancel", cancelSettingsLongPress);
 $("settingsBtn").addEventListener("click", handleSettingsTap);
-$("parkPickerBackBtn").addEventListener("click", () => {
-  showView("main");
-  loadWaitTimes();
-});
+$("parkPickerBackBtn").addEventListener("click", handleParkPickerBack);
 bindFilterClear("parkFilter", renderParkPicker);
 $("sourceStatus").addEventListener("click", (event) => {
   if ($("sourceStatus").getAttribute("href") === "#") event.preventDefault();
@@ -1610,9 +1724,7 @@ $("homeConfirmOverlay").addEventListener("click", (event) => {
   }
 });
 
-$("customRideMenuBackBtn").addEventListener("click", () => {
-  leaveCustomRideMenu();
-});
+$("customRideMenuBackBtn").addEventListener("click", handleCustomRideMenuBack);
 $("customRideMenuTitle").addEventListener("click", startCustomMenuTitleRename);
 $("customAddRidesBtn").addEventListener("click", () => {
   if (activeCustomListId) loadCustomSourceParkPicker(activeCustomListId);
@@ -1635,33 +1747,10 @@ $("customDeleteListBtn").addEventListener("click", () => {
   deleteCustomList(activeCustomListId);
 });
 
-$("customSourceParkBackBtn").addEventListener("click", () => showCustomRideMenu(activeCustomListId));
+$("customSourceParkBackBtn").addEventListener("click", handleCustomSourceParkBack);
 bindFilterClear("customSourceParkFilter", renderCustomSourceParkPicker);
-$("customRideOrderBackBtn").addEventListener("click", () => {
-  if (activeCustomListId) {
-    showCustomRideMenu(activeCustomListId);
-    return;
-  }
-
-  showView("parkPicker");
-  renderParkPicker();
-});
-$("ridePickerBackBtn").addEventListener("click", () => {
-  if (activeCustomListId && activeCustomSourceParkId) {
-    activeCustomSourceParkId = null;
-    showView("customSourceParkPicker");
-    renderCustomSourceParkPicker();
-    return;
-  }
-
-  if (consumeNavigationReturnTarget() === "home") {
-    returnToHomeView();
-    return;
-  }
-
-  showView("parkPicker");
-  renderParkPicker();
-});
+$("customRideOrderBackBtn").addEventListener("click", handleCustomRideOrderBack);
+$("ridePickerBackBtn").addEventListener("click", handleRidePickerBack);
 bindFilterClear("rideFilter", renderRidePicker);
 
 document.addEventListener("touchstart", (event) => {
@@ -1722,5 +1811,6 @@ document.addEventListener("touchend", (event) => {
 });
 
 setInterval(updateSourceStatus, 10000);
+registerNativeBackButton();
 showView("main");
 loadWaitTimes();

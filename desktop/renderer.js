@@ -1176,7 +1176,7 @@ async function loadCustomSourceParkPicker(customId) {
 
   activeCustomListId = customId;
 
-  $("customSourceParkTitle").textContent = "Choose Source Park";
+  $("customSourceParkTitle").textContent = "Choose Source Parks";
   resetFilter("customSourceParkFilter");
   $("customSourceParkList").innerHTML = `<div class="muted">Loading parks...</div>`;
 

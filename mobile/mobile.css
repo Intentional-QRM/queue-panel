@@ -327,6 +327,14 @@ input:focus {
   height: 28px;
 }
 
+#customRideOrderList .small-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 21px;
+  line-height: 1;
+}
+
 .small-btn:active {
   color: #ffb300;
   background: #333;
