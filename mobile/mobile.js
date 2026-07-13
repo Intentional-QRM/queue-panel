@@ -10,7 +10,8 @@ const api = Shared.createApi({
     : `/api/park/${parkId}`,
   pageUrl: (parkId) => usePackagedQueueTimes
     ? `https://queue-times.com/parks/${parkId}/queue_times`
-    : `/api/park-page/${parkId}`
+    : `/api/park-page/${parkId}`,
+  timeFormat: () => currentTimeFormat()
 });
 
 let state = Shared.loadState(localStorage, STORAGE_KEY);
@@ -43,6 +44,7 @@ let dragAutoScrollSpeed = 0;
 let parkSwipeTimer = null;
 let isParkSwipeAnimating = false;
 let waitLoadToken = 0;
+let currentRenderedRides = [];
 
 const PARK_SWIPE_PHASE_MS = 90;
 
@@ -61,6 +63,14 @@ const views = {
 
 function saveState() {
   Shared.saveState(localStorage, STORAGE_KEY, state);
+}
+
+function currentTimeFormat() {
+  return Shared.timeFormatForState(state);
+}
+
+function currentWaitListTextSize() {
+  return Shared.waitListTextSizeForState(state);
 }
 
 function showView(name) {
@@ -133,6 +143,7 @@ function toggleParkOverflowMenu() {
 }
 
 function showSettingsPage() {
+  updateSettingsControls();
   showView("settings");
 }
 
@@ -147,6 +158,63 @@ function showAboutPage() {
 function returnToParkPicker() {
   showView("parkPicker");
   renderParkPicker();
+}
+
+function updateSettingsControls() {
+  const timeFormat = currentTimeFormat();
+  const waitListTextSize = currentWaitListTextSize();
+  $("timeFormat12Btn").classList.toggle("active", timeFormat === "12h");
+  $("timeFormat24Btn").classList.toggle("active", timeFormat === "24h");
+  $("waitListTextSmallBtn").classList.toggle("active", waitListTextSize === "small");
+  $("waitListTextLargeBtn").classList.toggle("active", waitListTextSize === "large");
+}
+
+function updateWaitListTextSizeClass() {
+  $("mainView").classList.toggle(
+    "wait-list-large",
+    currentWaitListTextSize() === "large"
+  );
+}
+
+function reformatStatusText(statusText) {
+  return Shared.formatParkStatusText(statusText, currentTimeFormat());
+}
+
+function applyTimeFormat(timeFormat) {
+  if (!["12h", "24h"].includes(timeFormat)) return;
+
+  state.settings = {
+    ...(state.settings || {}),
+    timeFormat
+  };
+  saveState();
+  updateSettingsControls();
+
+  currentRenderedRides = currentRenderedRides.map((ride) =>
+    Shared.isParkStatusItem(ride)
+      ? { ...ride, statusText: reformatStatusText(ride.statusText) }
+      : ride
+  );
+
+  if (!views.main.classList.contains("hidden")) {
+    renderRides(currentRenderedRides);
+  }
+}
+
+function applyWaitListTextSize(waitListTextSize) {
+  if (!["small", "large"].includes(waitListTextSize)) return;
+
+  state.settings = {
+    ...(state.settings || {}),
+    waitListTextSize
+  };
+  saveState();
+  updateSettingsControls();
+  updateWaitListTextSizeClass();
+
+  if (!views.main.classList.contains("hidden")) {
+    renderRides(currentRenderedRides);
+  }
 }
 
 function syncFilterClearButton(inputId) {
@@ -225,6 +293,7 @@ function updateSourceStatus() {
 }
 
 function renderHomeShell() {
+  updateWaitListTextSizeClass();
   $("parkTitle").textContent = currentParkName();
   updateHomeButtonState();
 }
@@ -238,6 +307,7 @@ function updateHomeButtonState() {
 }
 
 function renderRides(rides) {
+  currentRenderedRides = rides;
   const rideList = $("rideList");
   rideList.innerHTML = "";
 
@@ -1791,6 +1861,10 @@ $("homeConfirmOverlay").addEventListener("click", (event) => {
 
 $("settingsBackBtn").addEventListener("click", returnToParkPicker);
 $("aboutBackBtn").addEventListener("click", returnToParkPicker);
+$("timeFormat12Btn").addEventListener("click", () => applyTimeFormat("12h"));
+$("timeFormat24Btn").addEventListener("click", () => applyTimeFormat("24h"));
+$("waitListTextSmallBtn").addEventListener("click", () => applyWaitListTextSize("small"));
+$("waitListTextLargeBtn").addEventListener("click", () => applyWaitListTextSize("large"));
 
 $("aboutQueueTimesLink").addEventListener("click", (event) => {
   event.preventDefault();

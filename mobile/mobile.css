@@ -195,6 +195,16 @@ body {
   font-size: 15px;
 }
 
+#mainView.wait-list-large #parkTitle {
+  font-size: 18px;
+  line-height: 1.25;
+}
+
+#mainView.wait-list-large .ride {
+  font-size: 17px;
+  line-height: 1.9;
+}
+
 .ride-name,
 .park-name,
 .menu-label {
@@ -388,6 +398,11 @@ input:focus {
 
 .option-row:active {
   background: #3a3a3a;
+  color: #ffb300;
+}
+
+.option-row.active {
+  border-color: #ffb300;
   color: #ffb300;
 }
 

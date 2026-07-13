@@ -7,7 +7,11 @@
     ridesByParkId: {},
     parkNamesById: {},
     customParks: [],
-    customParkRides: {}
+    customParkRides: {},
+    settings: {
+      timeFormat: "12h",
+      waitListTextSize: "small"
+    }
   };
 
   const APP_METADATA = {
@@ -20,16 +24,26 @@
 
   function loadState(storage, storageKey) {
     try {
-      return {
+      return normalizeState({
         ...DEFAULT_STATE,
         ...(JSON.parse(storage.getItem(storageKey)) || {})
-      };
+      });
     } catch {
-      return { ...DEFAULT_STATE };
+      return normalizeState({ ...DEFAULT_STATE });
     }
   }
 
   function normalizeState(state) {
+    state.settings = {
+      ...DEFAULT_STATE.settings,
+      ...(state.settings || {})
+    };
+    if (!["12h", "24h"].includes(state.settings.timeFormat)) {
+      state.settings.timeFormat = DEFAULT_STATE.settings.timeFormat;
+    }
+    if (!["small", "large"].includes(state.settings.waitListTextSize)) {
+      state.settings.waitListTextSize = DEFAULT_STATE.settings.waitListTextSize;
+    }
     state.favoriteParkIds = uniqueIds(state.favoriteParkIds || []);
     state.parkOrder = uniqueIds(state.parkOrder || []).filter((id) =>
       state.favoriteParkIds.includes(id)
@@ -68,7 +82,7 @@
     return [];
   }
 
-  function parseParkStatusHtml(html) {
+  function parseParkStatusHtml(html, timeFormat = "12h") {
     try {
       const statusText = new DOMParser()
         .parseFromString(html, "text/html")
@@ -79,7 +93,7 @@
 
       if (!statusText) return "Unavailable";
 
-      return formatParkStatusText(statusText);
+      return formatParkStatusText(statusText, timeFormat);
     } catch {
       return "Unavailable";
     }
@@ -89,7 +103,19 @@
     return /^(currently\s+open|open)\b/i.test(String(statusText || "").trim());
   }
 
-  function formatTimePart(hour, minute) {
+  function timeFormatForState(state) {
+    return state?.settings?.timeFormat === "24h" ? "24h" : "12h";
+  }
+
+  function waitListTextSizeForState(state) {
+    return state?.settings?.waitListTextSize === "large" ? "large" : "small";
+  }
+
+  function formatClockTime(hour, minute, timeFormat = "12h") {
+    if (timeFormat === "24h") {
+      return `${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}`;
+    }
+
     const period = hour >= 12 ? "PM" : "AM";
     const displayHour = hour % 12 || 12;
     const displayMinute = minute === 0 ? "" : `:${String(minute).padStart(2, "0")}`;
@@ -121,7 +147,7 @@
     return { hour, minute };
   }
 
-  function formatParkStatusText(statusText) {
+  function formatParkStatusText(statusText, timeFormat = "12h") {
     const text = String(statusText || "").trim().replace(/^Currently open\b/i, "Open");
     const match = text.match(
       /^(open)\b(.*?)(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?\s*(?:-|\u2013|\u2014)\s*(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?(.*)$/i
@@ -133,7 +159,7 @@
     if (!openParts || !closeParts) return text;
 
     const prefix = `${match[1][0].toUpperCase()}${match[1].slice(1).toLowerCase()}`;
-    return `${prefix}${match[2]}${formatTimePart(openParts.hour, openParts.minute)} – ${formatTimePart(closeParts.hour, closeParts.minute)}${match[9]}`
+    return `${prefix}${match[2]}${formatClockTime(openParts.hour, openParts.minute, timeFormat)} \u2013 ${formatClockTime(closeParts.hour, closeParts.minute, timeFormat)}${match[9]}`
       .replace(/\s+/g, " ")
       .trim();
   }
@@ -232,6 +258,9 @@
       `https://queue-times.com/parks/${parkId}/queue_times.json`);
     const pageUrl = options.pageUrl || ((parkId) =>
       `https://queue-times.com/parks/${parkId}/queue_times`);
+    const timeFormat = typeof options.timeFormat === "function"
+      ? options.timeFormat
+      : () => options.timeFormat || "12h";
 
     return {
       pageUrl,
@@ -250,7 +279,7 @@
       async loadParkStatus(parkId) {
         try {
           const response = await fetch(pageUrl(parkId));
-          return parseParkStatusHtml(await response.text());
+          return parseParkStatusHtml(await response.text(), timeFormat());
         } catch {
           return "Unavailable";
         }
@@ -580,7 +609,10 @@
     uniqueIds,
     ridesFromQueueData,
     parseParkStatusHtml,
+    formatClockTime,
     formatParkStatusText,
+    timeFormatForState,
+    waitListTextSizeForState,
     isParkStatusOpen,
     parkStatusClass,
     waitClass,

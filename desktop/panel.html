@@ -331,6 +331,16 @@
     line-height: 1.6;
   }
 
+  #mainView.wait-list-large #parkTitle {
+    font-size: 16px;
+    line-height: 1.25;
+  }
+
+  #mainView.wait-list-large .ride {
+    font-size: 16px;
+    line-height: 1.85;
+  }
+
   .ride-name,
   .park-name {
     flex: 1;
@@ -583,6 +593,11 @@
     color: #ffb300;
   }
 
+  .option-row.active {
+    border-color: #ffb300;
+    color: #ffb300;
+  }
+
   .about-content {
     padding-top: 12px;
     text-align: center;
@@ -742,17 +757,16 @@
     <div class="settings-section">
       <div class="settings-heading">Time format</div>
       <div class="option-group">
-        <button class="option-row" type="button">12-hour</button>
-        <button class="option-row" type="button">24-hour</button>
+        <button id="timeFormat12Btn" class="option-row" type="button">12-hour</button>
+        <button id="timeFormat24Btn" class="option-row" type="button">24-hour</button>
       </div>
     </div>
 
     <div class="settings-section">
-      <div class="settings-heading">Font size</div>
+      <div class="settings-heading">Wait List Text Size</div>
       <div class="option-group">
-        <button class="option-row" type="button">Small</button>
-        <button class="option-row" type="button">Medium</button>
-        <button class="option-row" type="button">Large</button>
+        <button id="waitListTextSmallBtn" class="option-row" type="button">Small</button>
+        <button id="waitListTextLargeBtn" class="option-row" type="button">Large</button>
       </div>
     </div>
   </div>
