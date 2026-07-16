@@ -45,6 +45,8 @@ const views = {
   about: $("aboutView")
 };
 
+applyThemeToDocument();
+
 function loadState() {
   return Shared.loadState(localStorage, STORAGE_KEY);
 }
@@ -68,6 +70,10 @@ function currentParkName() {
 
 function currentTimeFormat() {
   return Shared.timeFormatForState(state);
+}
+
+function currentTheme() {
+  return Shared.themeForState(state);
 }
 
 function currentWaitListTextSize() {
@@ -188,12 +194,19 @@ async function returnToParkPicker() {
 }
 
 function updateSettingsControls() {
+  const theme = currentTheme();
   const timeFormat = currentTimeFormat();
   const waitListTextSize = currentWaitListTextSize();
+  $("themeLightBtn").classList.toggle("active", theme === "light");
+  $("themeDarkBtn").classList.toggle("active", theme === "dark");
   $("timeFormat12Btn").classList.toggle("active", timeFormat === "12h");
   $("timeFormat24Btn").classList.toggle("active", timeFormat === "24h");
   $("waitListTextSmallBtn").classList.toggle("active", waitListTextSize === "small");
   $("waitListTextLargeBtn").classList.toggle("active", waitListTextSize === "large");
+}
+
+function applyThemeToDocument() {
+  document.documentElement.dataset.theme = currentTheme();
 }
 
 function updateWaitListTextSizeClass() {
@@ -238,6 +251,18 @@ function applyTimeFormat(timeFormat) {
       $("parkTitle").title = `${currentParkName()}: ${hoursText}`;
     }
   }
+}
+
+function applyTheme(theme) {
+  if (!["light", "dark"].includes(theme)) return;
+
+  state.settings = {
+    ...(state.settings || {}),
+    theme
+  };
+  saveState();
+  applyThemeToDocument();
+  updateSettingsControls();
 }
 
 function applyWaitListTextSize(waitListTextSize) {
@@ -341,24 +366,29 @@ function fitHomePanelToContent() {
   const mainView = $("mainView");
   const rideList = $("rideList");
 
-  const clone = rideList.cloneNode(true);
+  const clone = mainView.cloneNode(true);
+  const cloneRideList = clone.querySelector("#rideList");
   clone.style.position = "absolute";
   clone.style.visibility = "hidden";
   clone.style.pointerEvents = "none";
   clone.style.height = "auto";
-  clone.style.maxHeight = "none";
-  clone.style.overflow = "visible";
+  clone.style.minHeight = "0";
   clone.style.flex = "none";
-  clone.style.width = `${rideList.clientWidth}px`;
+  clone.style.width = `${mainView.clientWidth}px`;
+
+  if (cloneRideList) {
+    cloneRideList.style.height = "auto";
+    cloneRideList.style.maxHeight = "none";
+    cloneRideList.style.overflow = "visible";
+    cloneRideList.style.flex = "none";
+    cloneRideList.style.width = `${rideList.clientWidth}px`;
+  }
 
   document.body.appendChild(clone);
 
-  const chromeHeight =
-    mainView.scrollHeight - rideList.clientHeight;
-
   const height = Math.max(
     180,
-    Math.min(520, chromeHeight + clone.scrollHeight + 30)
+    Math.min(520, clone.scrollHeight + 30)
   );
 
   clone.remove();
@@ -741,7 +771,7 @@ function renderRidePicker() {
       <span class="row-actions">
         ${
           !filter
-            ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#9776;</button>`
+            ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#10303;</button>`
             : ""
         }
       </span>
@@ -958,7 +988,7 @@ function renderParkPicker() {
         <span class="row-actions">
           ${
             isFavorite && !filter
-              ? `<button class="icon-btn drag-handle" title="Drag to reorder">☰</button>`
+              ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#10303;</button>`
               : ""
           }
           <button class="icon-btn configure-park-btn" title="${park.isCustom ? "Custom list rides" : "Modify ride list"}">⚙</button>
@@ -1523,7 +1553,7 @@ function renderCustomRideOrder() {
         }
       </span>
 
-      <button class="icon-btn drag-handle" title="Drag to reorder">&#9776;</button>
+      <button class="icon-btn drag-handle" title="Drag to reorder">&#10303;</button>
     `;
 
     const deleteBtn = row.querySelector(".small-btn");
@@ -2020,6 +2050,8 @@ $("sourceStatus").addEventListener("click", (event) => {
 
 $("settingsBackBtn").addEventListener("click", returnToParkPicker);
 $("aboutBackBtn").addEventListener("click", returnToParkPicker);
+$("themeLightBtn").addEventListener("click", () => applyTheme("light"));
+$("themeDarkBtn").addEventListener("click", () => applyTheme("dark"));
 $("timeFormat12Btn").addEventListener("click", () => applyTimeFormat("12h"));
 $("timeFormat24Btn").addEventListener("click", () => applyTimeFormat("24h"));
 $("waitListTextSmallBtn").addEventListener("click", () => applyWaitListTextSize("small"));

@@ -9,6 +9,7 @@
     customParks: [],
     customParkRides: {},
     settings: {
+      theme: "dark",
       timeFormat: "12h",
       waitListTextSize: "small"
     }
@@ -40,6 +41,9 @@
     };
     if (!["12h", "24h"].includes(state.settings.timeFormat)) {
       state.settings.timeFormat = DEFAULT_STATE.settings.timeFormat;
+    }
+    if (!["light", "dark"].includes(state.settings.theme)) {
+      state.settings.theme = DEFAULT_STATE.settings.theme;
     }
     if (!["small", "large"].includes(state.settings.waitListTextSize)) {
       state.settings.waitListTextSize = DEFAULT_STATE.settings.waitListTextSize;
@@ -105,6 +109,10 @@
 
   function timeFormatForState(state) {
     return state?.settings?.timeFormat === "24h" ? "24h" : "12h";
+  }
+
+  function themeForState(state) {
+    return state?.settings?.theme === "light" ? "light" : "dark";
   }
 
   function waitListTextSizeForState(state) {
@@ -612,6 +620,7 @@
     formatClockTime,
     formatParkStatusText,
     timeFormatForState,
+    themeForState,
     waitListTextSizeForState,
     isParkStatusOpen,
     parkStatusClass,

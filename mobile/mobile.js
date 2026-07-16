@@ -27,6 +27,7 @@ let lastRefreshTime = null;
 let touchStartX = 0;
 let touchStartY = 0;
 let pullDistance = 0;
+let pullGestureStartedAtTop = false;
 let isPullRefreshing = false;
 let deleteCustomListArmed = false;
 let homeLongPressTimer = null;
@@ -50,6 +51,22 @@ const PARK_SWIPE_PHASE_MS = 90;
 
 const $ = (id) => document.getElementById(id);
 
+function getHomeScrollContainer() {
+  const rideList = $("rideList");
+  let node = rideList;
+
+  while (node && node !== document.body) {
+    if (node.scrollHeight > node.clientHeight + 1) return node;
+    node = node.parentElement;
+  }
+
+  return document.scrollingElement || document.documentElement;
+}
+
+function isHomeScrolledToTop() {
+  return getHomeScrollContainer().scrollTop <= 1;
+}
+
 const views = {
   main: $("mainView"),
   parkPicker: $("parkPickerView"),
@@ -61,12 +78,18 @@ const views = {
   about: $("aboutView")
 };
 
+applyThemeToDocument();
+
 function saveState() {
   Shared.saveState(localStorage, STORAGE_KEY, state);
 }
 
 function currentTimeFormat() {
   return Shared.timeFormatForState(state);
+}
+
+function currentTheme() {
+  return Shared.themeForState(state);
 }
 
 function currentWaitListTextSize() {
@@ -161,12 +184,19 @@ function returnToParkPicker() {
 }
 
 function updateSettingsControls() {
+  const theme = currentTheme();
   const timeFormat = currentTimeFormat();
   const waitListTextSize = currentWaitListTextSize();
+  $("themeLightBtn").classList.toggle("active", theme === "light");
+  $("themeDarkBtn").classList.toggle("active", theme === "dark");
   $("timeFormat12Btn").classList.toggle("active", timeFormat === "12h");
   $("timeFormat24Btn").classList.toggle("active", timeFormat === "24h");
   $("waitListTextSmallBtn").classList.toggle("active", waitListTextSize === "small");
   $("waitListTextLargeBtn").classList.toggle("active", waitListTextSize === "large");
+}
+
+function applyThemeToDocument() {
+  document.documentElement.dataset.theme = currentTheme();
 }
 
 function updateWaitListTextSizeClass() {
@@ -199,6 +229,18 @@ function applyTimeFormat(timeFormat) {
   if (!views.main.classList.contains("hidden")) {
     renderRides(currentRenderedRides);
   }
+}
+
+function applyTheme(theme) {
+  if (!["light", "dark"].includes(theme)) return;
+
+  state.settings = {
+    ...(state.settings || {}),
+    theme
+  };
+  saveState();
+  applyThemeToDocument();
+  updateSettingsControls();
 }
 
 function applyWaitListTextSize(waitListTextSize) {
@@ -763,6 +805,7 @@ function renderParkPicker() {
     const row = document.createElement("div");
     row.className = isCurrent ? "picker-row selected" : "picker-row";
     if (!isFavorite && !park.isCustom) row.classList.add("add-favorite-park-row");
+    if (isFavorite && !filter) row.classList.add("park-reorder-row");
 
     row.innerHTML = `
       <button class="icon-btn favorite-park-btn ${isFavorite ? "active" : ""}" title="Favorite park">
@@ -781,7 +824,7 @@ function renderParkPicker() {
       <span class="row-actions">
         ${
           isFavorite && !filter
-            ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#9776;</button>`
+            ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#10303;</button>`
             : ""
         }
         <button class="icon-btn configure-park-btn" title="${park.isCustom ? "Custom list rides" : "Modify ride list"}">&#9881;</button>
@@ -1185,7 +1228,7 @@ function renderRidePicker() {
       <span class="row-actions">
         ${
           !model.filter
-            ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#9776;</button>`
+            ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#10303;</button>`
             : ""
         }
       </span>
@@ -1394,7 +1437,7 @@ function renderCustomRideOrder() {
               </span>`
         }
       </span>
-      <button class="icon-btn drag-handle" title="Drag to reorder">&#9776;</button>
+      <button class="icon-btn drag-handle" title="Drag to reorder">&#10303;</button>
     `;
 
     makeRowDraggable(
@@ -1861,6 +1904,8 @@ $("homeConfirmOverlay").addEventListener("click", (event) => {
 
 $("settingsBackBtn").addEventListener("click", returnToParkPicker);
 $("aboutBackBtn").addEventListener("click", returnToParkPicker);
+$("themeLightBtn").addEventListener("click", () => applyTheme("light"));
+$("themeDarkBtn").addEventListener("click", () => applyTheme("dark"));
 $("timeFormat12Btn").addEventListener("click", () => applyTimeFormat("12h"));
 $("timeFormat24Btn").addEventListener("click", () => applyTimeFormat("24h"));
 $("waitListTextSmallBtn").addEventListener("click", () => applyWaitListTextSize("small"));
@@ -1920,17 +1965,22 @@ document.addEventListener("touchstart", (event) => {
   touchStartX = event.touches[0].clientX;
   touchStartY = event.touches[0].clientY;
   pullDistance = 0;
+  pullGestureStartedAtTop =
+    !views.main.classList.contains("hidden") &&
+    !isPullRefreshing &&
+    isHomeScrolledToTop();
 });
 
 document.addEventListener("touchmove", (event) => {
   if ($("homeBtn").contains(event.target)) return;
   if (views.main.classList.contains("hidden") || isPullRefreshing) return;
+  if (!pullGestureStartedAtTop) return;
 
   const touch = event.touches[0];
   const diffX = touch.clientX - touchStartX;
   const diffY = touch.clientY - touchStartY;
 
-  if (Math.abs(diffX) > Math.abs(diffY) || diffY <= 0 || window.scrollY > 0) {
+  if (Math.abs(diffX) > Math.abs(diffY) || diffY <= 0 || !isHomeScrolledToTop()) {
     return;
   }
 
@@ -1951,24 +2001,32 @@ document.addEventListener("touchend", (event) => {
   const touchEndY = event.changedTouches[0].clientY;
   const diff = touchEndX - touchStartX;
 
-  if (pullDistance >= 70 || touchEndY - touchStartY >= 70) {
+  if (pullGestureStartedAtTop && (pullDistance >= 70 || touchEndY - touchStartY >= 70)) {
     isPullRefreshing = true;
     $("pullRefreshStatus").classList.add("visible");
     $("pullRefreshStatus").textContent = "Refreshing...";
     loadWaitTimes().finally(() => {
       isPullRefreshing = false;
       pullDistance = 0;
+      pullGestureStartedAtTop = false;
       $("pullRefreshStatus").textContent = "Pull to refresh";
       $("pullRefreshStatus").classList.remove("visible");
     });
     return;
   }
 
+  pullGestureStartedAtTop = false;
   $("pullRefreshStatus").classList.remove("visible");
 
   if (Math.abs(diff) < 60 || Math.abs(diff) < Math.abs(touchEndY - touchStartY)) return;
 
   cyclePark(diff < 0 ? 1 : -1, { animate: true });
+});
+
+document.addEventListener("touchcancel", () => {
+  pullDistance = 0;
+  pullGestureStartedAtTop = false;
+  $("pullRefreshStatus").classList.remove("visible");
 });
 
 setInterval(updateSourceStatus, 10000);

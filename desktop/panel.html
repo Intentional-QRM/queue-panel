@@ -4,14 +4,79 @@
   <meta charset="UTF-8" />
   <title>Queue Panel</title>
 <style>
+  :root,
+  :root[data-theme="dark"] {
+    --app-bg: #202020;
+    --input-bg: #111;
+    --row-bg: #2b2b2b;
+    --control-bg: #1f1f1f;
+    --popup-bg: #252525;
+    --pressed-bg: #3a3a3a;
+    --control-pressed-bg: #333;
+    --selected-bg: #263528;
+    --text: #fff;
+    --muted-text: #888;
+    --subtle-text: #aaa;
+    --disabled-text: #555;
+    --window-border: #3c3c3c;
+    --border: #444;
+    --row-border: #3f3f3f;
+    --strong-border: #555;
+    --divider: rgba(120, 170, 255, 0.15);
+    --scrollbar-track: #252525;
+    --scrollbar-thumb: #555;
+    --scrollbar-thumb-hover: #9db9d9;
+    --popup-shadow: rgba(0, 0, 0, 0.35);
+    --drag-shadow: rgba(0, 0, 0, 0.45);
+    --active-soft: rgba(255, 179, 0, 0.05);
+    --placeholder-bg: rgba(255, 179, 0, 0.06);
+    --link: #7f9fc4;
+    --accent: #ffb300;
+    --accent-border: #806322;
+    --success: #4caf50;
+    --danger: #ff5252;
+  }
+
+  :root[data-theme="light"] {
+    --app-bg: #e9edf1;
+    --input-bg: #f7f9fb;
+    --row-bg: #f8fafb;
+    --control-bg: #eef2f5;
+    --popup-bg: #f8fafb;
+    --pressed-bg: #e0e6eb;
+    --control-pressed-bg: #d9e1e7;
+    --selected-bg: #ddeee3;
+    --text: #0d1218;
+    --muted-text: #46515c;
+    --subtle-text: #515d68;
+    --disabled-text: #87919b;
+    --window-border: #a8b3bd;
+    --border: #aeb9c3;
+    --row-border: #b8c3cd;
+    --strong-border: #9ca8b3;
+    --divider: rgba(44, 91, 148, 0.31);
+    --scrollbar-track: #dfe5ea;
+    --scrollbar-thumb: #83919e;
+    --scrollbar-thumb-hover: #4f789f;
+    --popup-shadow: rgba(28, 37, 46, 0.2);
+    --drag-shadow: rgba(28, 37, 46, 0.28);
+    --active-soft: rgba(216, 137, 0, 0.11);
+    --placeholder-bg: rgba(216, 137, 0, 0.1);
+    --link: #2f6496;
+    --accent: #d88900;
+    --accent-border: #c58200;
+    --success: #23812e;
+    --danger: #d12f2f;
+  }
+
   body {
     margin: 0;
     height: 100vh;
     font-family: Segoe UI, Arial, sans-serif;
     font-size: 14px;
-    background: #202020;
-    color: #fff;
-    border: 1px solid #3c3c3c;
+    background: var(--app-bg);
+    color: var(--text);
+    border: 1px solid var(--window-border);
     box-sizing: border-box;
     padding: 10px 12px;
     overflow: hidden;
@@ -36,6 +101,10 @@
     grid-template-columns: auto auto auto auto 1fr auto;
   }
 
+  .header:not(.home-header) > .icon-btn:first-child {
+    transform: translateY(-2px);
+  }
+
   .title {
     text-align: center;
     white-space: nowrap;
@@ -52,7 +121,7 @@
   .icon-btn {
     background: none;
     border: none;
-    color: #fff;
+    color: var(--text);
     cursor: pointer;
     font-size: 16px;
     padding: 0 2px;
@@ -65,20 +134,20 @@
 
   .icon-btn:hover,
   .icon-btn.active {
-    color: #ffb300;
+    color: var(--accent);
   }
 
   .icon-btn:disabled {
-    color: #555;
+    color: var(--disabled-text);
     cursor: default;
   }
 
   .context-menu {
     position: fixed;
     z-index: 20;
-    background: #252525;
-    border: 1px solid #555;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.35);
+    background: var(--popup-bg);
+    border: 1px solid var(--strong-border);
+    box-shadow: 0 4px 12px var(--popup-shadow);
     padding: 4px;
     min-width: 145px;
   }
@@ -87,7 +156,7 @@
     width: 100%;
     background: transparent;
     border: none;
-    color: #fff;
+    color: var(--text);
     cursor: pointer;
     padding: 6px 8px;
     text-align: left;
@@ -95,8 +164,8 @@
   }
 
   .context-menu button:hover {
-    background: #3a3a3a;
-    color: #ffb300;
+    background: var(--pressed-bg);
+    color: var(--accent);
   }
 
   .arrow-btn {
@@ -105,9 +174,9 @@
 
   .settings-option {
     width: 100%;
-    background: #2b2b2b;
-    border: 1px solid #444;
-    color: #fff;
+    background: var(--row-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
     padding: 8px 10px;
     margin-bottom: 8px;
     text-align: left;
@@ -117,22 +186,22 @@
   }
 
   .settings-option:hover {
-    background: #3a3a3a;
+    background: var(--pressed-bg);
   }
 
   .section-break {
-    border-top: 1px solid #555;
+    border-top: 1px solid var(--strong-border);
     margin: 14px 0;
   }
 
   .muted {
-    color: #888;
+    color: var(--muted-text);
     line-height: 1.45;
   }
 
   .source-line {
     display: block;
-    color: #7f9fc4;
+    color: var(--link);
     font-size: 11px;
     text-align: center;
     margin-bottom: 3px;
@@ -141,19 +210,19 @@
   }
 
   .source-line:hover {
-    color: #ffb300;
+    color: var(--accent);
   }
 
   .header-divider {
     height: 1px;
     margin: 3px 8px 5px 8px;
-    background: rgba(120, 170, 255, 0.15);
+    background: var(--divider);
   }
 
   .custom-ride-divider {
     height: 1px;
     margin: 5px 8px;
-    background: rgba(120, 170, 255, 0.15);
+    background: var(--divider);
   }
 
   .add-divider-row {
@@ -167,7 +236,7 @@
 
   .add-divider-row:hover .ride-name,
   .add-divider-row:hover .icon-btn {
-    color: #ffb300;
+    color: var(--accent);
   }
 
   .add-favorite-park-row,
@@ -184,7 +253,7 @@
   .add-favorite-park-row:hover .favorite-park-btn,
   .add-favorite-ride-row:hover .ride-name,
   .add-favorite-ride-row:hover .ride-star-btn {
-    color: #ffb300;
+    color: var(--accent);
   }
 
   .custom-menu-row {
@@ -198,7 +267,7 @@
 
   .custom-menu-row:hover .menu-label,
   .custom-menu-row:hover .menu-arrow {
-    color: #ffb300;
+    color: var(--accent);
   }
 
   .menu-label {
@@ -220,7 +289,7 @@
 
   .add-custom-list-row:hover .park-name,
   .add-custom-list-row:hover .icon-btn {
-    color: #ffb300;
+    color: var(--accent);
   }
 
   .choose-source-park-row {
@@ -233,7 +302,7 @@
 
   .choose-source-park-row:hover .park-name,
   .choose-source-park-row:hover .icon-btn {
-    color: #ffb300;
+    color: var(--accent);
   }
 
   #mainView {
@@ -291,18 +360,18 @@
   }
 
   #rideList::-webkit-scrollbar-track {
-    background: #252525;
+    background: var(--scrollbar-track);
     border-radius: 5px;
   }
 
   #rideList::-webkit-scrollbar-thumb {
-    background: #555;
+    background: var(--scrollbar-thumb);
     border-radius: 5px;
-    border: 2px solid #252525;
+    border: 2px solid var(--scrollbar-track);
   }
 
   #rideList::-webkit-scrollbar-thumb:hover {
-    background: #9db9d9;
+    background: var(--scrollbar-thumb-hover);
   }
 
   .scroll-list::-webkit-scrollbar {
@@ -310,18 +379,18 @@
   }
 
   .scroll-list::-webkit-scrollbar-track {
-    background: #252525;
+    background: var(--scrollbar-track);
     border-radius: 5px;
   }
 
   .scroll-list::-webkit-scrollbar-thumb {
-    background: #555;
+    background: var(--scrollbar-thumb);
     border-radius: 5px;
-    border: 2px solid #252525;
+    border: 2px solid var(--scrollbar-track);
   }
 
   .scroll-list::-webkit-scrollbar-thumb:hover {
-    background: #9db9d9;
+    background: var(--scrollbar-thumb-hover);
   }
 
   .ride {
@@ -352,7 +421,7 @@
 
   .ride-source {
     display: block;
-    color: #888;
+    color: var(--muted-text);
     font-size: 11px;
     margin-top: 1px;
     overflow: hidden;
@@ -360,25 +429,25 @@
     white-space: nowrap;
   }
 
-  .low { color: #4caf50; }
-  .medium { color: #ffb300; }
-  .high { color: #ff5252; }
-  .closed { color: #888; }
+  .low { color: var(--success); }
+  .medium { color: var(--accent); }
+  .high { color: var(--danger); }
+  .closed { color: var(--muted-text); }
 
   input {
     width: 100%;
     box-sizing: border-box;
     margin-bottom: 8px;
     padding: 7px 8px;
-    background: #111;
-    border: 1px solid #444;
-    color: #fff;
+    background: var(--input-bg);
+    border: 1px solid var(--border);
+    color: var(--text);
     font-size: 14px;
   }
 
   input:focus {
-    outline: 1px solid #ffb300;
-    border-color: #ffb300;
+    outline: 1px solid var(--accent);
+    border-color: var(--accent);
   }
 
   .filter-control {
@@ -400,7 +469,7 @@
     height: 22px;
     border: none;
     background: transparent;
-    color: #aaa;
+    color: var(--subtle-text);
     cursor: pointer;
     font-size: 18px;
     line-height: 1;
@@ -408,7 +477,7 @@
   }
 
   .filter-clear-btn:hover {
-    color: #ffb300;
+    color: var(--accent);
   }
 
   .title-rename-control,
@@ -434,7 +503,7 @@
     height: 22px;
     border: none;
     background: transparent;
-    color: #aaa;
+    color: var(--subtle-text);
     cursor: pointer;
     font-size: 18px;
     line-height: 1;
@@ -442,7 +511,7 @@
   }
 
   .rename-clear-btn:hover {
-    color: #ffb300;
+    color: var(--accent);
   }
 
   .custom-park-name-input {
@@ -460,13 +529,13 @@
   }
 
   .picker-row:hover .custom-park-name-input {
-    border-color: #ffb300;
-    background: rgba(255, 179, 0, 0.05);
+    border-color: var(--accent);
+    background: var(--active-soft);
   }
 
   .custom-park-name-input:hover,
   .custom-park-name-input:focus {
-    border-color: #ffb300;
+    border-color: var(--accent);
   }
 
   .scroll-list {
@@ -478,16 +547,16 @@
     display: flex;
     align-items: center;
     gap: 8px;
-    background: #2b2b2b;
-    border: 1px solid #3f3f3f;
-    color: #fff;
+    background: var(--row-bg);
+    border: 1px solid var(--row-border);
+    color: var(--text);
     padding: 6px 8px;
     margin-bottom: 5px;
     box-sizing: border-box;
   }
 
   .picker-row.selected {
-    background: #263528;
+    background: var(--selected-bg);
   }
 
   .row-actions {
@@ -501,16 +570,16 @@
     grid-template-columns: auto 1fr auto;
     gap: 6px;
     align-items: center;
-    background: #2b2b2b;
-    border: 1px solid #3f3f3f;
+    background: var(--row-bg);
+    border: 1px solid var(--row-border);
     padding: 6px 8px;
     margin-bottom: 5px;
   }
 
   .small-btn {
-    background: #1f1f1f;
-    border: 1px solid #555;
-    color: #fff;
+    background: var(--control-bg);
+    border: 1px solid var(--strong-border);
+    color: var(--text);
     cursor: pointer;
     min-width: 26px;
     height: 24px;
@@ -525,17 +594,17 @@
   }
 
   .small-btn:hover {
-    color: #ffb300;
-    background: #333;
+    color: var(--accent);
+    background: var(--control-pressed-bg);
   }
 
   .small-btn:disabled {
-    color: #555;
+    color: var(--disabled-text);
     cursor: default;
   }
 
   .drag-handle {
-    color: #aaa;
+    color: var(--subtle-text);
     cursor: grab;
     user-select: none;
     -webkit-user-select: none;
@@ -548,8 +617,8 @@
 
   .drag-placeholder {
     margin-bottom: 5px;
-    border: 1px dashed #ffb300;
-    background: rgba(255, 179, 0, 0.06);
+    border: 1px dashed var(--accent);
+    background: var(--placeholder-bg);
     box-sizing: border-box;
   }
 
@@ -558,7 +627,7 @@
     z-index: 9999;
     pointer-events: none;
     opacity: 0.95;
-    box-shadow: 0 6px 18px rgba(0, 0, 0, 0.45);
+    box-shadow: 0 6px 18px var(--drag-shadow);
   }
 
   .settings-section {
@@ -567,7 +636,7 @@
 
   .settings-heading,
   .about-heading {
-    color: #7f9fc4;
+    color: var(--link);
     font-size: 12px;
     font-weight: 600;
     margin: 0 0 6px 0;
@@ -579,9 +648,9 @@
   }
 
   .option-row {
-    background: #2b2b2b;
-    border: 1px solid #3f3f3f;
-    color: #fff;
+    background: var(--row-bg);
+    border: 1px solid var(--row-border);
+    color: var(--text);
     padding: 7px 8px;
     text-align: left;
     font-size: 14px;
@@ -589,13 +658,13 @@
   }
 
   .option-row:hover {
-    background: #3a3a3a;
-    color: #ffb300;
+    background: var(--pressed-bg);
+    color: var(--accent);
   }
 
   .option-row.active {
-    border-color: #ffb300;
-    color: #ffb300;
+    border-color: var(--accent);
+    color: var(--accent);
   }
 
   .about-content {
@@ -604,7 +673,7 @@
   }
 
   .about-title {
-    color: #fff;
+    color: var(--text);
     font-size: 16px;
     font-weight: 700;
     margin-bottom: 8px;
@@ -616,12 +685,12 @@
 
   .about-link {
     display: block;
-    color: #7f9fc4;
+    color: var(--link);
     text-decoration: none;
   }
 
   .about-link:hover {
-    color: #ffb300;
+    color: var(--accent);
   }
 
 </style>
@@ -748,9 +817,8 @@
     <div class="settings-section">
       <div class="settings-heading">Theme</div>
       <div class="option-group">
-        <button class="option-row" type="button">Light</button>
-        <button class="option-row" type="button">Dark</button>
-        <button class="option-row" type="button">System</button>
+        <button id="themeLightBtn" class="option-row" type="button">Light</button>
+        <button id="themeDarkBtn" class="option-row" type="button">Dark</button>
       </div>
     </div>
 
