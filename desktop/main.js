@@ -13,6 +13,63 @@ let panelBottomY = null;
 
 const PANEL_WIDTH = 340;
 const PANEL_BASE_HEIGHT = 510;
+const MIN_PANEL_HEIGHT = 100;
+const MAX_TRAY_PARKS = 100;
+
+function isPanelSender(event) {
+  return panel && !panel.isDestroyed() && event.sender === panel.webContents;
+}
+
+function isAllowedExternalUrl(value) {
+  if (typeof value !== "string") return false;
+
+  try {
+    const url = new URL(value);
+    if (url.protocol !== "https:") return false;
+    if (url.hostname === "queue-times.com") return true;
+
+    return (
+      url.hostname === "github.com" &&
+      (url.pathname === "/Intentional-QRM/queue-panel" ||
+        url.pathname.startsWith("/Intentional-QRM/queue-panel/"))
+    );
+  } catch {
+    return false;
+  }
+}
+
+function normalizeTrayMenuData(data) {
+  if (!data || typeof data !== "object") {
+    return { currentParkId: null, parks: [] };
+  }
+
+  const parks = Array.isArray(data.parks)
+    ? data.parks
+        .slice(0, MAX_TRAY_PARKS)
+        .filter((park) =>
+          park &&
+          (typeof park.id === "string" || Number.isFinite(park.id)) &&
+          typeof park.name === "string" &&
+          park.name.trim()
+        )
+        .map((park) => ({
+          id: String(park.id),
+          name: park.name.trim().slice(0, 200)
+        }))
+    : [];
+
+  const requestedCurrentParkId =
+    typeof data.currentParkId === "string" || Number.isFinite(data.currentParkId)
+      ? String(data.currentParkId)
+      : null;
+
+  return {
+    currentParkId: parks.some((park) => park.id === requestedCurrentParkId)
+      ? requestedCurrentParkId
+      : null,
+    parks
+  };
+}
 
 function createPanelWindow() {
   const cursor = screen.getCursorScreenPoint();
@@ -85,20 +142,27 @@ function showPanelPage(page) {
 }
 
 ipcMain.on("resize-panel", (event, requestedHeight) => {
+  if (!isPanelSender(event)) return;
   if (!panel || panel.isDestroyed()) return;
   if (panelBottomY === null) return;
+  if (!Number.isFinite(requestedHeight)) return;
 
   const currentBounds = panel.getBounds();
+  const workArea = screen.getDisplayMatching(currentBounds).workArea;
+  const height = Math.min(
+    Math.max(Math.round(requestedHeight), MIN_PANEL_HEIGHT),
+    workArea.height
+  );
 
   if (
-    currentBounds.height !== requestedHeight ||
-    currentBounds.y !== panelBottomY - requestedHeight
+    currentBounds.height !== height ||
+    currentBounds.y !== panelBottomY - height
   ) {
     panel.setBounds({
       x: currentBounds.x,
-      y: panelBottomY - requestedHeight,
+      y: panelBottomY - height,
       width: PANEL_WIDTH,
-      height: requestedHeight
+      height
     });
   }
 
@@ -108,23 +172,14 @@ ipcMain.on("resize-panel", (event, requestedHeight) => {
 });
 
 ipcMain.on("open-external", (event, url) => {
-  if (!url || typeof url !== "string") return;
-
-  const allowedUrls = [
-    "https://queue-times.com",
-    "https://github.com/Intentional-QRM/queue-panel"
-  ];
-
-  if (!allowedUrls.some((allowedUrl) => url.startsWith(allowedUrl))) return;
+  if (!isPanelSender(event) || !isAllowedExternalUrl(url)) return;
 
   shell.openExternal(url);
 });
 
 ipcMain.on("update-tray-menu", (event, data) => {
-  trayMenuState = {
-    currentParkId: data?.currentParkId || null,
-    parks: Array.isArray(data?.parks) ? data.parks : []
-  };
+  if (!isPanelSender(event)) return;
+  trayMenuState = normalizeTrayMenuData(data);
 
   rebuildTrayMenu();
 });

@@ -18,7 +18,7 @@
   const APP_METADATA = {
     name: "Queue Panel",
     version: "1.3.0",
-    build: "1",
+    build: "2",
     repositoryUrl: "https://github.com/Intentional-QRM/queue-panel",
     queueTimesUrl: "https://queue-times.com"
   };
@@ -76,7 +76,9 @@
 
   function ridesFromQueueData(data) {
     if (Array.isArray(data?.lands) && data.lands.length > 0) {
-      return data.lands.flatMap((land) => land.rides || []);
+      return data.lands.flatMap((land) =>
+        Array.isArray(land?.rides) ? land.rides : []
+      );
     }
 
     if (Array.isArray(data?.rides)) {
@@ -84,6 +86,13 @@
     }
 
     return [];
+  }
+
+  function isQueueData(data) {
+    return Boolean(
+      data &&
+      (Array.isArray(data.lands) || Array.isArray(data.rides))
+    );
   }
 
   function parseParkStatusHtml(html, timeFormat = "12h") {
@@ -249,8 +258,9 @@
   }
 
   function normalizeParks(groups) {
-    return (groups || [])
-      .flatMap((group) => group.parks || [])
+    return (Array.isArray(groups) ? groups : [])
+      .flatMap((group) => Array.isArray(group?.parks) ? group.parks : [])
+      .filter((park) => park && park.id !== undefined && park.name)
       .map((park) => ({
         id: String(park.id),
         name: park.name,
@@ -279,7 +289,16 @@
       },
       async loadQueue(parkId) {
         const response = await fetch(queueUrl(parkId));
-        return response.json();
+        if (response.ok === false) {
+          throw new Error(`Queue-Times request failed with status ${response.status}`);
+        }
+
+        const data = await response.json();
+        if (!isQueueData(data)) {
+          throw new Error("Queue-Times returned an invalid queue response");
+        }
+
+        return data;
       },
       async loadRides(parkId) {
         return ridesFromQueueData(await this.loadQueue(parkId));
@@ -400,6 +419,31 @@
 
   function normalizeStandardRideList(rides) {
     return (rides || []).filter(Boolean);
+  }
+
+  function placeholderRideItems(savedItems, isCustomList = false) {
+    return (savedItems || [])
+      .map((item) => {
+        if (isDividerItem(item)) return item;
+
+        if (isParkStatusItem(item)) {
+          return {
+            type: "parkStatus",
+            name: isCustomList
+              ? item.parkName || `Park ${item.parkId}`
+              : "Park Status",
+            statusText: "--"
+          };
+        }
+
+        const name =
+          typeof item === "string"
+            ? item
+            : item?.rideName || item?.name;
+
+        return name ? { name, placeholderWait: true } : null;
+      })
+      .filter(Boolean);
   }
 
   function toggleStandardRide(state, parkId, rideName) {
@@ -608,7 +652,7 @@
       .replaceAll("'", "&#039;");
   }
 
-  window.QueuePanelShared = {
+  const QueuePanelShared = {
     APP_METADATA,
     DEFAULT_STATE,
     loadState,
@@ -616,6 +660,7 @@
     saveState,
     uniqueIds,
     ridesFromQueueData,
+    isQueueData,
     parseParkStatusHtml,
     formatClockTime,
     formatParkStatusText,
@@ -642,6 +687,7 @@
     standardRideIndex,
     parkStatusIndex,
     normalizeStandardRideList,
+    placeholderRideItems,
     toggleStandardRide,
     customRideIndex,
     toggleCustomRide,
@@ -654,4 +700,12 @@
     customRidePickerRows,
     escapeHtml
   };
+
+  if (typeof module !== "undefined" && module.exports) {
+    module.exports = QueuePanelShared;
+  }
+
+  if (typeof window !== "undefined") {
+    window.QueuePanelShared = QueuePanelShared;
+  }
 })();

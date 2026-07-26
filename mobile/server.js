@@ -2,7 +2,15 @@ const http = require("http");
 const fs = require("fs");
 const path = require("path");
 
-const PORT = 8000;
+const DEFAULT_HOST = "0.0.0.0";
+const DEFAULT_PORT = 8000;
+const HOST = process.env.QUEUE_PANEL_HOST || DEFAULT_HOST;
+const configuredPort = Number(process.env.QUEUE_PANEL_PORT);
+const PORT = Number.isInteger(configuredPort) &&
+  configuredPort >= 1 &&
+  configuredPort <= 65535
+  ? configuredPort
+  : DEFAULT_PORT;
 
 const mimeTypes = {
   ".html": "text/html",
@@ -97,6 +105,9 @@ const server = http.createServer(async (req, res) => {
   });
 });
 
-server.listen(PORT, "0.0.0.0", () => {
-  console.log(`Queue Panel Mobile running at http://localhost:${PORT}`);
+server.listen(PORT, HOST, () => {
+  console.log(
+    `Queue Panel mobile development server listening on ${HOST}:${PORT} ` +
+    "(intended for local-network device testing only)."
+  );
 });

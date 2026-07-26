@@ -4,6 +4,7 @@
   "description": "Desktop tray application for theme park wait times powered by Queue-Times.com",
   "main": "desktop/main.js",
   "scripts": {
+    "test": "node --test",
     "start": "electron .",
     "dist": "electron-builder",
     "mobile:prepare": "node scripts/prepare-android-web.js",

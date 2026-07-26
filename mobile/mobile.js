@@ -29,6 +29,7 @@ let touchStartY = 0;
 let pullDistance = 0;
 let pullGestureStartedAtTop = false;
 let isPullRefreshing = false;
+let waitRefreshFailed = false;
 let deleteCustomListArmed = false;
 let homeLongPressTimer = null;
 let homeLongPressRecognized = false;
@@ -334,6 +335,19 @@ function updateSourceStatus() {
   el.textContent = `Powered by Queue-Times.com - ${ageText}`;
 }
 
+function setWaitRefreshFailed(failed) {
+  waitRefreshFailed = failed;
+  const status = $("pullRefreshStatus");
+
+  if (failed) {
+    status.textContent = "Failed to load wait times.";
+    status.classList.add("visible");
+  } else if (!isPullRefreshing) {
+    status.textContent = "Pull to refresh";
+    status.classList.remove("visible");
+  }
+}
+
 function renderHomeShell() {
   updateWaitListTextSizeClass();
   $("parkTitle").textContent = currentParkName();
@@ -388,7 +402,7 @@ function renderRides(rides) {
       : ride.is_open ? Shared.waitClass(ride.wait_time) : "closed";
 
     row.innerHTML = `
-      <span class="ride-name ${ride.is_open ? "" : "closed"}" title="${escapeHtml(ride.name)}">
+      <span class="ride-name ${ride.placeholderWait || ride.is_open ? "" : "closed"}" title="${escapeHtml(ride.name)}">
         ${escapeHtml(ride.name)}
       </span>
       <span class="${className}" title="${escapeHtml(ride.name)}">${waitText}</span>
@@ -398,38 +412,8 @@ function renderRides(rides) {
   });
 }
 
-function previewRideItem(item, isCustomList = false) {
-  if (Shared.isDividerItem(item)) return item;
-
-  if (Shared.isParkStatusItem(item)) {
-    return {
-      type: "parkStatus",
-      name: isCustomList
-        ? item.parkName || `Park ${item.parkId}`
-        : "Park Status",
-      statusText: "--"
-    };
-  }
-
-  const name =
-    typeof item === "string"
-      ? item
-      : item?.rideName || item?.name;
-
-  if (!name) return null;
-
-  return {
-    name,
-    placeholderWait: true
-  };
-}
-
 function renderWaitPreview(savedItems, isCustomList = false) {
-  renderRides(
-    savedItems
-      .map((item) => previewRideItem(item, isCustomList))
-      .filter(Boolean)
-  );
+  renderRides(Shared.placeholderRideItems(savedItems, isCustomList));
 }
 
 function isCurrentWaitLoad(token, id) {
@@ -453,6 +437,7 @@ async function loadWaitTimes() {
   const token = ++waitLoadToken;
   renderHomeShell();
   updateSourceStatus();
+  setWaitRefreshFailed(false);
 
   const id = currentParkId();
   const rideList = $("rideList");
@@ -502,13 +487,15 @@ async function loadWaitTimes() {
     if (!isCurrentWaitLoad(token, id)) return;
 
     lastRefreshTime = Date.now();
+    setWaitRefreshFailed(false);
     updateSourceStatus();
     renderRides(rides);
   } catch (error) {
     if (!isCurrentWaitLoad(token, id)) return;
 
     console.error(error);
-    rideList.innerHTML = `<div class="muted">Failed to load wait times.</div>`;
+    renderWaitPreview(savedRides);
+    setWaitRefreshFailed(true);
   }
 }
 
@@ -568,13 +555,15 @@ async function loadCustomWaitTimes(id, token) {
     if (!isCurrentWaitLoad(token, id)) return;
 
     lastRefreshTime = Date.now();
+    setWaitRefreshFailed(false);
     updateSourceStatus();
     renderRides(rides);
   } catch (error) {
     if (!isCurrentWaitLoad(token, id)) return;
 
     console.error(error);
-    rideList.innerHTML = `<div class="muted">Failed to load custom list wait times.</div>`;
+    renderWaitPreview(savedRides, true);
+    setWaitRefreshFailed(true);
   }
 }
 
@@ -2009,8 +1998,10 @@ document.addEventListener("touchend", (event) => {
       isPullRefreshing = false;
       pullDistance = 0;
       pullGestureStartedAtTop = false;
-      $("pullRefreshStatus").textContent = "Pull to refresh";
-      $("pullRefreshStatus").classList.remove("visible");
+      if (!waitRefreshFailed) {
+        $("pullRefreshStatus").textContent = "Pull to refresh";
+        $("pullRefreshStatus").classList.remove("visible");
+      }
     });
     return;
   }

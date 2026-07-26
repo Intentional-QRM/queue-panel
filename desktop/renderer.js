@@ -10,6 +10,7 @@ let allParks = [];
 let allPickerRides = [];
 let cycleResizeTimer = null;
 let lastRefreshTime = null;
+let waitRefreshFailed = false;
 let sourceTimer = null;
 let deleteCustomListArmed = false;
 let activeCustomListId = null;
@@ -330,6 +331,11 @@ function updateSourceStatus() {
 
   if (!el) return;
 
+  if (waitRefreshFailed) {
+    el.textContent = "Failed to load wait times.";
+    return;
+  }
+
   if (!lastRefreshTime) {
     el.textContent = "Powered by Queue-Times.com";
     return;
@@ -451,6 +457,8 @@ async function loadAllParks() {
 
 async function loadWaitTimes() {
   renderHomeShell();
+  waitRefreshFailed = false;
+  updateSourceStatus();
 
   const id = currentParkId();
 
@@ -496,10 +504,11 @@ async function loadWaitTimes() {
       !Shared.isDividerItem(item) && !Shared.isParkStatusItem(item)
     );
     const allRides = realSavedRides.length > 0
-      ? ridesFromQueueData(await queueApi.loadQueue(id))
+      ? await queueApi.loadRides(id)
       : [];
 
     lastRefreshTime = Date.now();
+    waitRefreshFailed = false;
     updateSourceStatus();
 
     const statusText = savedRideNames.some(Shared.isParkStatusItem)
@@ -524,8 +533,9 @@ async function loadWaitTimes() {
     renderRides(rides);
   } catch (err) {
     console.error(err);
-    rideList.innerHTML = `<div class="muted">Failed to load wait times.</div>`;
-    resizePanelSoon();
+    waitRefreshFailed = true;
+    updateSourceStatus();
+    renderRides(Shared.placeholderRideItems(savedRideNames));
   }
 }
 
@@ -567,9 +577,7 @@ async function loadCustomWaitTimes(id) {
 
     await Promise.all(
       uniqueParkIds.map(async (parkId) => {
-        const response = await fetch(parkQueueUrl(parkId));
-        const data = await response.json();
-        parkRideMap[parkId] = ridesFromQueueData(data);
+        parkRideMap[parkId] = await queueApi.loadRides(parkId);
       })
     );
 
@@ -580,6 +588,7 @@ async function loadCustomWaitTimes(id) {
     );
 
     lastRefreshTime = Date.now();
+    waitRefreshFailed = false;
     updateSourceStatus();
 
     const rides = savedRides
@@ -607,8 +616,9 @@ async function loadCustomWaitTimes(id) {
     renderRides(rides);
   } catch (err) {
     console.error(err);
-    rideList.innerHTML = `<div class="muted">Failed to load custom list wait times.</div>`;
-    resizePanelSoon();
+    waitRefreshFailed = true;
+    updateSourceStatus();
+    renderRides(Shared.placeholderRideItems(savedRides, true));
   }
 }
 
@@ -681,12 +691,16 @@ function renderRides(rides) {
     const row = document.createElement("div");
     row.className = "ride";
 
-    const waitText = ride.is_open ? ride.wait_time : "Closed";
-    const className = ride.is_open ? waitClass(ride.wait_time) : "closed";
+    const waitText = ride.placeholderWait
+      ? "--"
+      : ride.is_open ? ride.wait_time : "Closed";
+    const className = ride.placeholderWait
+      ? "muted"
+      : ride.is_open ? waitClass(ride.wait_time) : "closed";
 
     row.innerHTML = `
       <span
-        class="ride-name ${ride.is_open ? "" : "closed"}"
+        class="ride-name ${ride.placeholderWait || ride.is_open ? "" : "closed"}"
         title="${escapeHtml(ride.name)}"
       >
         ${escapeHtml(ride.name)}

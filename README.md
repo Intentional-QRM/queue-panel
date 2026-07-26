@@ -60,6 +60,9 @@ To build a distributable installer:
 npm run dist
 ```
 
+Packaging may require network access when Electron or packaging tools are not
+already present in the local cache.
+
 ### Android
 
 Queue Panel is available as a native Android application built with Capacitor.
