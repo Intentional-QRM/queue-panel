@@ -32,7 +32,7 @@
         const distance = touchDistance(touches);
         if (!distance) return false;
 
-        const threshold = Math.max(32, startingDistance * 0.1);
+        const threshold = Math.max(16, startingDistance * 0.05);
         const change = distance - startingDistance;
         if (Math.abs(change) < threshold) return false;
 
@@ -41,7 +41,7 @@
         return true;
       },
       end(remainingTouchCount) {
-        if (remainingTouchCount === 0) reset();
+        if (remainingTouchCount < 2) reset();
       },
       cancel: reset,
       isActive: () => active

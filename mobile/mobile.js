@@ -1436,7 +1436,7 @@ function renderRidePicker() {
     addDividerRow.className = "picker-row add-divider-row";
     addDividerRow.innerHTML = `
       <button class="icon-btn" title="Add divider">&#9734;</button>
-      <span class="ride-name divider-label">[Add Divider]</span>
+      <span class="ride-name">[Add Divider]</span>
       <span></span>
     `;
     addDividerRow.addEventListener("click", () => {
@@ -1619,7 +1619,7 @@ function renderCustomRideOrder() {
   addDividerRow.className = "order-row add-divider-row custom-order-add-divider-row";
   addDividerRow.innerHTML = `
     <span></span>
-    <span class="ride-name divider-label">[Add Divider]</span>
+    <span class="ride-name">[Add Divider]</span>
     <span></span>
   `;
   addDividerRow.addEventListener("click", () => {

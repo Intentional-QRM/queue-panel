@@ -14,7 +14,8 @@ test("desktop divider labels use cool blue and retain add-row hover styling", ()
   assert.match(cssAndHtml, /\.divider-label\s*{\s*color:\s*#78aaff;/);
   assert.match(cssAndHtml, /\.add-divider-row:hover \.ride-name[\s\S]*?color:\s*var\(--accent\)/);
   assert.match(cssAndHtml, /\.custom-ride-divider\s*{[\s\S]*?background:\s*var\(--divider\)/);
-  assert.equal(renderer.match(/divider-label/g)?.length, 4);
+  assert.equal(renderer.match(/divider-label/g)?.length, 2);
+  assert.doesNotMatch(renderer, /ride-name divider-label">\[Add Divider\]/);
   assert.doesNotMatch(renderer, /Custom divider/);
 });
 
@@ -23,8 +24,8 @@ test("mobile divider labels match desktop and retain active feedback", () => {
   const renderer = read("mobile/mobile.js");
 
   assert.match(css, /\.divider-label\s*{\s*color:\s*#78aaff;/);
-  assert.match(css, /\.add-divider-row:active \.divider-label\s*{\s*color:\s*var\(--accent\)/);
   assert.match(css, /\.custom-ride-divider\s*{\s*margin:\s*8px 0;/);
-  assert.equal(renderer.match(/divider-label/g)?.length, 4);
+  assert.equal(renderer.match(/divider-label/g)?.length, 2);
+  assert.doesNotMatch(renderer, /ride-name divider-label">\[Add Divider\]/);
   assert.doesNotMatch(renderer, /Custom divider/);
 });

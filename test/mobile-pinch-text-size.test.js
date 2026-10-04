@@ -19,25 +19,26 @@ test("pinch out selects large once after crossing the threshold", () => {
   const gesture = createPinchTextSizeGesture((size) => changes.push(size));
 
   assert.equal(gesture.begin(touches(100)), true);
-  assert.equal(gesture.move(touches(120)), false);
-  assert.equal(gesture.move(touches(133)), true);
+  assert.equal(gesture.move(touches(115)), false);
+  assert.equal(gesture.move(touches(117)), true);
   assert.equal(gesture.move(touches(60)), false);
   assert.deepEqual(changes, ["large"]);
 });
 
-test("pinch in selects small and resets only after all fingers lift", () => {
+test("end(1) resets and an immediate second pinch can select the opposite size", () => {
   const changes = [];
   const gesture = createPinchTextSizeGesture((size) => changes.push(size));
 
   gesture.begin(touches(140));
-  gesture.move(touches(100));
+  assert.equal(gesture.move(touches(125)), false);
+  assert.equal(gesture.move(touches(123)), true);
+  assert.deepEqual(changes, ["small"]);
+
   gesture.end(1);
-  assert.equal(gesture.isActive(), true);
-  gesture.end(0);
   assert.equal(gesture.isActive(), false);
 
-  gesture.begin(touches(100));
-  gesture.move(touches(135));
+  assert.equal(gesture.begin(touches(100)), true);
+  assert.equal(gesture.move(touches(117)), true);
   assert.deepEqual(changes, ["small", "large"]);
 });
 
