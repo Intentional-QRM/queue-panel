@@ -256,6 +256,14 @@ body {
   margin: 8px 0;
 }
 
+.divider-label {
+  color: #78aaff;
+}
+
+.add-divider-row:active .divider-label {
+  color: var(--accent);
+}
+
 .section-break {
   margin: 14px 0;
 }

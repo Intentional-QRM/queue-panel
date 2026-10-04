@@ -965,7 +965,7 @@ function renderRidePicker() {
     row.innerHTML = `
       <button class="icon-btn ride-star-btn active" title="${isDivider ? "Remove divider" : isParkStatus ? "Remove park status" : "Remove ride"}">&#9733;</button>
 
-      <span class="ride-name" title="${escapeHtml(rideName)}">
+      <span class="ride-name ${isDivider ? "divider-label" : ""}" title="${escapeHtml(rideName)}">
         ${escapeHtml(rideName)}
       </span>
 
@@ -1040,7 +1040,7 @@ function renderRidePicker() {
 
     addDividerRow.innerHTML = `
       <button class="icon-btn" title="Add divider">&#9734;</button>
-      <span class="ride-name">[Add Divider]</span>
+      <span class="ride-name divider-label">[Add Divider]</span>
       <span></span>
     `;
 
@@ -1743,10 +1743,10 @@ function renderCustomRideOrder() {
       <button class="small-btn" title="Remove">&times;</button>
 
       <span class="ride-name" title="${escapeHtml(rideName)}">
-        ${escapeHtml(rideName)}
+        <span class="${isDivider ? "divider-label" : ""}">${escapeHtml(rideName)}</span>
         ${
           isDivider
-            ? `<span class="ride-source">Custom divider</span>`
+            ? ""
             : isParkStatus
               ? `<span class="ride-source">Park Status</span>`
             : `<span class="ride-source" title="${escapeHtml(parkName)}">
@@ -1788,7 +1788,7 @@ function renderCustomRideOrder() {
   addDividerRow.className = "order-row add-divider-row";
 
   addDividerRow.innerHTML = `
-    <span class="ride-name">[Add Divider]</span>
+    <span class="ride-name divider-label">[Add Divider]</span>
     <span></span>
     <span></span>
   `;
