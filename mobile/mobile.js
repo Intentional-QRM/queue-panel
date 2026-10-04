@@ -47,6 +47,7 @@ let parkSwipeTimer = null;
 let isParkSwipeAnimating = false;
 let waitLoadToken = 0;
 let currentRenderedRides = [];
+const transientParkNavigation = Shared.createTransientParkNavigation();
 
 const PARK_SWIPE_PHASE_MS = 90;
 
@@ -98,6 +99,7 @@ function currentWaitListTextSize() {
 }
 
 function showView(name) {
+  if (name !== "main") transientParkNavigation.clear();
   Object.values(views).forEach((view) => view.classList.add("hidden"));
   views[name].classList.remove("hidden");
   closeParkOverflowMenu();
@@ -387,6 +389,29 @@ function renderRides(rides) {
           ${escapeHtml(statusText)}
         </span>
       `;
+
+      if (Shared.isCustomParkId(currentParkId()) && ride.parkId !== undefined) {
+        row.classList.add("park-status-link");
+        row.tabIndex = 0;
+        row.setAttribute("role", "button");
+        row.setAttribute("aria-label", `View ${label}`);
+
+        const openPark = () => {
+          const originCustomListId = currentParkId();
+          transientParkNavigation.begin(originCustomListId);
+          Shared.viewPark(state, ride.parkId, ride.parkName || label);
+          showView("main");
+          loadWaitTimes();
+        };
+
+        row.addEventListener("click", openPark);
+        row.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          openPark();
+        });
+      }
+
       rideList.appendChild(row);
       return;
     }
@@ -542,6 +567,7 @@ async function loadCustomWaitTimes(id, token) {
           const statusText = parkStatusMap[String(savedRide.parkId)] || "Unavailable";
           return {
             type: "parkStatus",
+            parkId: String(savedRide.parkId),
             name: parkName,
             parkName,
             statusText
@@ -789,6 +815,7 @@ function renderParkPicker() {
 
   const renderParkRow = (park) => {
     const isFavorite = state.favoriteParkIds.includes(park.id);
+    const isConfigured = Shared.hasConfiguredRideList(state, park.id);
     const isCurrent = currentParkId() === park.id;
     const orderIndex = state.parkOrder.indexOf(park.id);
     const row = document.createElement("div");
@@ -816,7 +843,7 @@ function renderParkPicker() {
             ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#10303;</button>`
             : ""
         }
-        <button class="icon-btn configure-park-btn" title="${park.isCustom ? "Custom list rides" : "Modify ride list"}">&#9881;</button>
+        <button class="icon-btn configure-park-btn ${isConfigured ? "active" : ""}" title="${park.isCustom ? "Custom list rides" : "Modify ride list"}">&#9881;</button>
       </span>
     `;
 
@@ -1516,6 +1543,7 @@ function clearParkSwipeClasses() {
 }
 
 function applyParkCycle(nextParkId) {
+  transientParkNavigation.clear();
   state.currentParkId = nextParkId;
   saveState();
   loadWaitTimes();
@@ -1572,6 +1600,7 @@ function cyclePark(direction, options = {}) {
 
 function goHomePark() {
   if (!state.homeParkId) return;
+  transientParkNavigation.clear();
   state.currentParkId = state.homeParkId;
   saveState();
   loadWaitTimes();
@@ -1815,6 +1844,19 @@ function minimizeAndroidApp() {
 
 function handleNativeBackButton() {
   if (closeTopPopup()) return;
+
+  if (currentViewName() === "main") {
+    const originCustomListId = transientParkNavigation.consumeOrigin();
+    if (originCustomListId) {
+      Shared.viewPark(
+        state,
+        originCustomListId,
+        customParkById(originCustomListId)?.name
+      );
+      loadWaitTimes();
+      return;
+    }
+  }
 
   switch (currentViewName()) {
     case "parkPicker":

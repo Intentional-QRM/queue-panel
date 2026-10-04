@@ -81,6 +81,63 @@ test("standard ride toggling preserves order and removes a selected ride", () =>
   assert.deepEqual(state.ridesByParkId["7"], ["Ride A"]);
 });
 
+test("configured ride-list state follows saved content, not favorite status", () => {
+  const state = Shared.normalizeState({
+    favoriteParkIds: ["1", "2"],
+    parkOrder: ["1", "2"],
+    ridesByParkId: {
+      1: [],
+      2: ["Configured Ride"],
+      3: ["Non-Favorite Ride"],
+      4: [{ type: "divider", title: "Divider" }]
+    },
+    settings: {}
+  });
+
+  assert.equal(Shared.hasConfiguredRideList(state, "1"), false);
+  assert.equal(Shared.hasConfiguredRideList(state, "2"), true);
+  assert.equal(Shared.hasConfiguredRideList(state, "3"), true);
+  assert.equal(Shared.hasConfiguredRideList(state, "4"), true);
+  assert.equal(Shared.hasConfiguredRideList(state, "missing"), false);
+
+  Shared.toggleFavoritePark(state, { id: "2", name: "Configured Favorite" });
+  Shared.toggleFavoritePark(state, { id: "3", name: "Configured Non-Favorite" });
+
+  assert.equal(Shared.hasConfiguredRideList(state, "2"), true);
+  assert.equal(Shared.hasConfiguredRideList(state, "3"), true);
+
+  state.ridesByParkId[2].splice(0);
+  assert.equal(Shared.hasConfiguredRideList(state, "2"), false);
+});
+
+test("custom-list configured state requires actual saved list content", () => {
+  const state = Shared.normalizeState({
+    customParks: [
+      { id: "custom_1", name: "Empty List" },
+      { id: "custom_2", name: "Renamed But Empty" },
+      { id: "custom_3", name: "Populated List" }
+    ],
+    customParkRides: {
+      custom_1: [],
+      custom_2: [],
+      custom_3: [{ type: "parkStatus", parkId: "7" }]
+    },
+    settings: {}
+  });
+
+  assert.equal(Shared.hasConfiguredRideList(state, "custom_1"), false);
+  assert.equal(Shared.hasConfiguredRideList(state, "custom_2"), false);
+  assert.equal(Shared.hasConfiguredRideList(state, "custom_3"), true);
+
+  state.customParkRides.custom_1.push({ type: "divider", title: "Divider" });
+  assert.equal(Shared.hasConfiguredRideList(state, "custom_1"), true);
+
+  state.customParkRides.custom_1.splice(0);
+  state.customParkRides.custom_3.splice(0);
+  assert.equal(Shared.hasConfiguredRideList(state, "custom_1"), false);
+  assert.equal(Shared.hasConfiguredRideList(state, "custom_3"), false);
+});
+
 test("custom list creation initializes normalized state and unique numbering", () => {
   const state = Shared.normalizeState({
     favoriteParkIds: [],
@@ -188,8 +245,98 @@ test("custom-list failure placeholders use saved ride and park names", () => {
     null
   ], true), [
     { name: "Test Ride", placeholderWait: true },
-    { type: "parkStatus", name: "Test Park", statusText: "--" }
+    {
+      type: "parkStatus",
+      parkId: "7",
+      parkName: "Test Park",
+      name: "Test Park",
+      statusText: "--"
+    }
   ]);
+});
+
+test("transient park viewing changes only the viewed park and name cache", () => {
+  const state = Shared.normalizeState({
+    currentParkId: "custom_1",
+    homeParkId: "1",
+    favoriteParkIds: ["1", "custom_1"],
+    parkOrder: ["1", "custom_1"],
+    parkNamesById: { custom_1: "Summary" },
+    ridesByParkId: { 7: ["Saved Ride"] },
+    customParks: [{ id: "custom_1", name: "Summary" }],
+    customParkRides: {
+      custom_1: [{ parkId: "7", rideName: "Saved Ride" }]
+    },
+    settings: {}
+  });
+  const configurationBefore = {
+    homeParkId: state.homeParkId,
+    favoriteParkIds: [...state.favoriteParkIds],
+    parkOrder: [...state.parkOrder],
+    ridesByParkId: structuredClone(state.ridesByParkId),
+    customParkRides: structuredClone(state.customParkRides)
+  };
+
+  Shared.viewPark(state, 7, "Test Park");
+
+  assert.equal(state.currentParkId, "7");
+  assert.equal(state.parkNamesById["7"], "Test Park");
+  assert.deepEqual({
+    homeParkId: state.homeParkId,
+    favoriteParkIds: state.favoriteParkIds,
+    parkOrder: state.parkOrder,
+    ridesByParkId: state.ridesByParkId,
+    customParkRides: state.customParkRides
+  }, configurationBefore);
+});
+
+test("viewing an existing favorite leaves its favorite configuration unchanged", () => {
+  const state = Shared.normalizeState({
+    currentParkId: "custom_1",
+    favoriteParkIds: ["7", "custom_1"],
+    parkOrder: ["custom_1", "7"],
+    parkNamesById: { 7: "Test Park", custom_1: "Summary" },
+    customParks: [{ id: "custom_1", name: "Summary" }],
+    settings: {}
+  });
+
+  Shared.viewPark(state, 7, "Test Park");
+
+  assert.equal(state.currentParkId, "7");
+  assert.deepEqual(state.favoriteParkIds, ["7", "custom_1"]);
+  assert.deepEqual(state.parkOrder, ["custom_1", "7"]);
+});
+
+test("transient navigation returns once and clears stale context", () => {
+  const navigation = Shared.createTransientParkNavigation();
+  const state = Shared.normalizeState({
+    currentParkId: "custom_1",
+    favoriteParkIds: ["custom_1"],
+    parkOrder: ["custom_1"],
+    parkNamesById: { custom_1: "Summary" },
+    customParks: [{ id: "custom_1", name: "Summary" }],
+    customParkRides: { custom_1: [{ parkId: "7", rideName: "Saved Ride" }] },
+    settings: {}
+  });
+  const customConfiguration = structuredClone(state.customParkRides);
+
+  navigation.begin("custom_1");
+  Shared.viewPark(state, "7", "Test Park");
+  const origin = navigation.consumeOrigin();
+  Shared.viewPark(state, origin, "Summary");
+
+  assert.equal(state.currentParkId, "custom_1");
+  assert.deepEqual(state.customParkRides, customConfiguration);
+  assert.deepEqual(state.favoriteParkIds, ["custom_1"]);
+  assert.deepEqual(state.parkOrder, ["custom_1"]);
+  assert.equal(navigation.consumeOrigin(), null);
+
+  navigation.begin("custom_2");
+  navigation.clear();
+  assert.equal(navigation.consumeOrigin(), null);
+
+  navigation.begin("7");
+  assert.equal(navigation.consumeOrigin(), null);
 });
 
 test("queue response shape validation distinguishes valid empty data", () => {

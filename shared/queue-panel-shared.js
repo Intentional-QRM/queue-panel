@@ -340,6 +340,37 @@
     return state.parkNamesById[id] || `Park ${id}`;
   }
 
+  function viewPark(state, parkId, parkName) {
+    const id = String(parkId);
+    state.currentParkId = id;
+
+    if (parkName) {
+      state.parkNamesById[id] = parkName;
+    }
+
+    return id;
+  }
+
+  function createTransientParkNavigation() {
+    let originCustomListId = null;
+
+    return {
+      begin(customListId) {
+        originCustomListId = isCustomParkId(customListId)
+          ? String(customListId)
+          : null;
+      },
+      consumeOrigin() {
+        const origin = originCustomListId;
+        originCustomListId = null;
+        return origin;
+      },
+      clear() {
+        originCustomListId = null;
+      }
+    };
+  }
+
   function nextCustomListNumber(state) {
     let number = (state.customParks || []).length + 1;
 
@@ -421,6 +452,15 @@
     return (rides || []).filter(Boolean);
   }
 
+  function hasConfiguredRideList(state, parkId) {
+    const id = String(parkId);
+    const items = isCustomParkId(id)
+      ? state?.customParkRides?.[id]
+      : state?.ridesByParkId?.[id];
+
+    return Array.isArray(items) && items.some(Boolean);
+  }
+
   function placeholderRideItems(savedItems, isCustomList = false) {
     return (savedItems || [])
       .map((item) => {
@@ -429,6 +469,12 @@
         if (isParkStatusItem(item)) {
           return {
             type: "parkStatus",
+            ...(item.parkId === undefined
+              ? {}
+              : {
+                  parkId: String(item.parkId),
+                  parkName: item.parkName
+                }),
             name: isCustomList
               ? item.parkName || `Park ${item.parkId}`
               : "Park Status",
@@ -677,6 +723,8 @@
     displayParkName,
     currentParkId,
     currentParkName,
+    viewPark,
+    createTransientParkNavigation,
     nextCustomListNumber,
     createCustomList,
     standardRideName,
@@ -687,6 +735,7 @@
     standardRideIndex,
     parkStatusIndex,
     normalizeStandardRideList,
+    hasConfiguredRideList,
     placeholderRideItems,
     toggleStandardRide,
     customRideIndex,

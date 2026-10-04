@@ -602,6 +602,7 @@ async function loadCustomWaitTimes(id) {
           const statusText = parkStatusMap[String(savedRide.parkId)] || "Unavailable";
           return {
             type: "parkStatus",
+            parkId: String(savedRide.parkId),
             name: parkName,
             parkName,
             statusText
@@ -684,6 +685,27 @@ function renderRides(rides) {
           ${escapeHtml(statusText)}
         </span>
       `;
+
+      if (isCustomParkId(currentParkId()) && ride.parkId !== undefined) {
+        row.classList.add("park-status-link");
+        row.tabIndex = 0;
+        row.setAttribute("role", "button");
+        row.setAttribute("aria-label", `View ${label}`);
+
+        const openPark = () => {
+          Shared.viewPark(state, ride.parkId, ride.parkName || label);
+          showView("main");
+          loadWaitTimes();
+        };
+
+        row.addEventListener("click", openPark);
+        row.addEventListener("keydown", (event) => {
+          if (event.key !== "Enter" && event.key !== " ") return;
+          event.preventDefault();
+          openPark();
+        });
+      }
+
       rideList.appendChild(row);
       continue;
     }
@@ -965,6 +987,7 @@ function renderParkPicker() {
 
     function renderParkRow(park) {
       const isFavorite = state.favoriteParkIds.includes(park.id);
+      const isConfigured = Shared.hasConfiguredRideList(state, park.id);
       const isCurrent = currentParkId() === park.id;
       const orderIndex = state.parkOrder.indexOf(park.id);
 
@@ -1005,7 +1028,7 @@ function renderParkPicker() {
               ? `<button class="icon-btn drag-handle" title="Drag to reorder">&#10303;</button>`
               : ""
           }
-          <button class="icon-btn configure-park-btn" title="${park.isCustom ? "Custom list rides" : "Modify ride list"}">⚙</button>
+          <button class="icon-btn configure-park-btn ${isConfigured ? "active" : ""}" title="${park.isCustom ? "Custom list rides" : "Modify ride list"}">⚙</button>
         </span>
       `;
 
