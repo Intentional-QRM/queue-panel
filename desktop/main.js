@@ -1,8 +1,20 @@
-const { app, Tray, Menu, BrowserWindow, screen, ipcMain, shell } = require("electron");
+const {
+  app,
+  Tray,
+  Menu,
+  BrowserWindow,
+  screen,
+  ipcMain,
+  shell,
+  dialog
+} = require("electron");
+const fs = require("fs/promises");
 const path = require("path");
+const { createModalOperationGuard } = require("./modal-operation-guard");
 
 let tray = null;
 let panel = null;
+const modalOperationGuard = createModalOperationGuard(() => panel);
 
 let trayMenuState = {
   currentParkId: null,
@@ -15,6 +27,7 @@ const PANEL_WIDTH = 340;
 const PANEL_BASE_HEIGHT = 510;
 const MIN_PANEL_HEIGHT = 100;
 const MAX_TRAY_PARKS = 100;
+const MAX_BACKUP_BYTES = 5 * 1024 * 1024;
 
 function isPanelSender(event) {
   return panel && !panel.isDestroyed() && event.sender === panel.webContents;
@@ -96,7 +109,11 @@ function createPanelWindow() {
   panel.loadFile(path.join(__dirname, "panel.html"));
 
   panel.on("blur", () => {
-    if (panel && !panel.isDestroyed()) {
+    if (
+      modalOperationGuard.shouldAutoHide() &&
+      panel &&
+      !panel.isDestroyed()
+    ) {
       panel.hide();
     }
   });
@@ -182,6 +199,67 @@ ipcMain.on("update-tray-menu", (event, data) => {
   trayMenuState = normalizeTrayMenuData(data);
 
   rebuildTrayMenu();
+});
+
+ipcMain.handle("export-backup", async (event, data) => {
+  if (!isPanelSender(event)) return { canceled: true };
+  if (
+    !data ||
+    typeof data.content !== "string" ||
+    Buffer.byteLength(data.content, "utf8") > MAX_BACKUP_BYTES
+  ) {
+    throw new Error("Invalid backup data");
+  }
+
+  const suggestedName =
+    typeof data.fileName === "string" &&
+    /^QueuePanel_Backup_\d{4}-\d{2}-\d{2}(?:_[\d-]+)?\.json$/.test(data.fileName)
+      ? data.fileName
+      : "QueuePanel_Backup.json";
+  return modalOperationGuard.run(async () => {
+    const result = await dialog.showSaveDialog(panel, {
+      title: "Export Queue Panel Data",
+      defaultPath: path.join(app.getPath("downloads"), suggestedName),
+      filters: [{ name: "JSON files", extensions: ["json"] }]
+    });
+
+    if (result.canceled || !result.filePath) return { canceled: true };
+
+    await fs.writeFile(result.filePath, data.content, "utf8");
+    return {
+      canceled: false,
+      filePath: result.filePath,
+      fileName: path.basename(result.filePath)
+    };
+  });
+});
+
+ipcMain.handle("import-backup", async (event) => {
+  if (!isPanelSender(event)) return { canceled: true };
+
+  return modalOperationGuard.run(async () => {
+    const result = await dialog.showOpenDialog(panel, {
+      title: "Import Queue Panel Data",
+      properties: ["openFile"],
+      filters: [{ name: "JSON files", extensions: ["json"] }]
+    });
+
+    if (result.canceled || result.filePaths.length !== 1) {
+      return { canceled: true };
+    }
+
+    const filePath = result.filePaths[0];
+    const file = await fs.readFile(filePath);
+    if (file.length > MAX_BACKUP_BYTES) {
+      throw new Error("Backup file is too large");
+    }
+
+    return {
+      canceled: false,
+      content: file.toString("utf8"),
+      fileName: path.basename(filePath)
+    };
+  });
 });
 
 function rebuildTrayMenu() {

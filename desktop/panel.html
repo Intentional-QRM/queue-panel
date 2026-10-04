@@ -98,7 +98,25 @@
   }
 
   .home-header {
-    grid-template-columns: auto auto auto auto 1fr auto;
+    grid-template-columns: auto auto auto 1fr auto;
+  }
+
+  .park-nav-slot {
+    position: relative;
+    display: grid;
+    grid-template-columns: auto auto;
+    gap: 5px;
+  }
+
+  .park-nav-slot.transient .cycle-park-btn {
+    visibility: hidden;
+    pointer-events: none;
+  }
+
+  .transient-park-back-btn {
+    position: absolute;
+    inset: 0;
+    width: 100%;
   }
 
   .header:not(.home-header) > .icon-btn:first-child {
@@ -644,6 +662,46 @@
     margin-bottom: 14px;
   }
 
+  .fixed-header-view {
+    box-sizing: border-box;
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+    max-width: 100%;
+    overflow: hidden;
+  }
+
+  .fixed-header-view.hidden {
+    display: none;
+  }
+
+  .view-scroll-body {
+    box-sizing: border-box;
+    flex: 1;
+    min-height: 0;
+    max-width: 100%;
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
+
+  .view-scroll-body::-webkit-scrollbar {
+    width: 8px;
+  }
+
+  .view-scroll-body::-webkit-scrollbar-track {
+    background: var(--scrollbar-track);
+  }
+
+  .view-scroll-body::-webkit-scrollbar-thumb {
+    background: var(--scrollbar-thumb);
+    border: 2px solid var(--scrollbar-track);
+    border-radius: 8px;
+  }
+
+  .view-scroll-body::-webkit-scrollbar-thumb:hover {
+    background: var(--scrollbar-thumb-hover);
+  }
+
   .settings-heading,
   .about-heading {
     color: var(--link);
@@ -675,6 +733,55 @@
   .option-row.active {
     border-color: var(--accent);
     color: var(--accent);
+  }
+
+  .settings-help,
+  .settings-status {
+    color: var(--muted-text);
+    font-size: 12px;
+    line-height: 1.4;
+    margin: 0 0 7px;
+  }
+
+  .settings-status {
+    margin: 7px 0 0;
+  }
+
+  .confirm-overlay {
+    position: fixed;
+    inset: 0;
+    z-index: 100;
+    display: flex;
+    align-items: flex-end;
+    background: rgba(0, 0, 0, 0.42);
+    padding: 10px;
+    box-sizing: border-box;
+  }
+
+  .confirm-overlay.hidden {
+    display: none;
+  }
+
+  .confirm-sheet {
+    width: 100%;
+    background: var(--popup-bg);
+    border: 1px solid var(--border);
+    box-shadow: 0 -8px 24px var(--popup-shadow);
+    padding: 12px;
+    box-sizing: border-box;
+  }
+
+  .confirm-message {
+    white-space: pre-line;
+    font-size: 13px;
+    line-height: 1.45;
+    margin-bottom: 10px;
+  }
+
+  .confirm-actions {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 7px;
   }
 
   .about-content {
@@ -710,8 +817,11 @@
   <div id="mainView">
     <div class="header home-header">
       <button id="homeBtn" class="icon-btn home-btn" title="Go to home park">⌂</button>
-      <button id="prevParkBtn" class="icon-btn arrow-btn" title="Previous favorite park">◁</button>
-      <button id="nextParkBtn" class="icon-btn arrow-btn" title="Next favorite park">▷</button>
+      <span id="parkNavSlot" class="park-nav-slot">
+        <button id="prevParkBtn" class="icon-btn arrow-btn cycle-park-btn" title="Previous favorite park">◁</button>
+        <button id="nextParkBtn" class="icon-btn arrow-btn cycle-park-btn" title="Next favorite park">▷</button>
+        <button id="transientParkBackBtn" class="icon-btn transient-park-back-btn hidden" title="Back to custom list">←</button>
+      </span>
       <button id="refreshBtn" class="icon-btn" title="Refresh">↻</button>
       <span id="parkTitle" class="title">No park selected</span>
       <button id="settingsBtn" class="icon-btn home-btn" title="Park list">⚙</button>
@@ -817,13 +927,14 @@
     <div id="allRideList" class="scroll-list"></div>
   </div>
 
-  <div id="settingsView" class="hidden">
+  <div id="settingsView" class="fixed-header-view hidden">
     <div class="header">
       <button id="settingsBackBtn" class="icon-btn">&#8592;</button>
       <span class="title">Settings</span>
       <span></span>
     </div>
 
+    <div class="view-scroll-body">
     <div class="settings-section">
       <div class="settings-heading">Theme</div>
       <div class="option-group">
@@ -847,16 +958,48 @@
         <button id="waitListTextLargeBtn" class="option-row" type="button">Large</button>
       </div>
     </div>
+
+    <div class="settings-section">
+      <div class="settings-heading">Backup &amp; Transfer</div>
+      <p class="settings-help">Export your Queue Panel setup for backup or transfer to another device. Import a previously exported file to restore or copy your setup.</p>
+      <div class="option-group">
+        <button id="exportBackupBtn" class="option-row" type="button">Export Queue Panel Data</button>
+        <button id="importBackupBtn" class="option-row" type="button">Import Queue Panel Data</button>
+        <button id="clearAllDataBtn" class="option-row hidden" type="button">Clear All Queue Panel Data</button>
+      </div>
+      <div id="backupStatus" class="settings-status" aria-live="polite"></div>
+    </div>
+    </div>
   </div>
 
-  <div id="aboutView" class="hidden">
+  <div id="importConfirmOverlay" class="confirm-overlay hidden">
+    <div class="confirm-sheet">
+      <div id="importConfirmText" class="confirm-message"></div>
+      <div class="confirm-actions">
+        <button id="importConfirmCancelBtn" class="option-row" type="button">Cancel</button>
+        <button id="importConfirmApplyBtn" class="option-row active" type="button">Import</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="clearDataConfirmOverlay" class="confirm-overlay hidden">
+    <div class="confirm-sheet">
+      <div class="confirm-message">Clear all Queue Panel data?<br><br>This will remove all parks, ride lists, custom lists, ordering, and settings from this device and return Queue Panel to its default state.</div>
+      <div class="confirm-actions">
+        <button id="clearDataConfirmCancelBtn" class="option-row" type="button">Cancel</button>
+        <button id="clearDataConfirmApplyBtn" class="option-row active" type="button">Clear All Data</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="aboutView" class="fixed-header-view hidden">
     <div class="header">
       <button id="aboutBackBtn" class="icon-btn">&#8592;</button>
       <span class="title">About</span>
       <span></span>
     </div>
 
-    <div class="about-content">
+    <div class="view-scroll-body about-content">
       <div id="aboutAppName" class="about-title">Queue Panel</div>
       <div id="aboutVersion" class="muted about-version">Version</div>
       <a id="aboutQueueTimesLink" class="about-link" href="#">Powered by Queue-Times.com</a>

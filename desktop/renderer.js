@@ -1,5 +1,5 @@
 const Shared = window.QueuePanelShared;
-const STORAGE_KEY = "queuePanelState";
+const STORAGE_KEY = Shared.QUEUE_PANEL_STORAGE_KEY;
 const DEFAULT_STATE = Shared.DEFAULT_STATE;
 const queueApi = Shared.createApi({
   timeFormat: () => currentTimeFormat()
@@ -16,6 +16,8 @@ let deleteCustomListArmed = false;
 let activeCustomListId = null;
 let activeCustomSourceParkId = null;
 let navigationReturnTarget = null;
+const transientParkNavigation = Shared.createTransientParkNavigation();
+let transientParkOriginName = null;
 let draftCustomListId = null;
 let draftCustomListName = null;
 let draftCustomListChanged = false;
@@ -30,6 +32,7 @@ let settingsLongPressRecognized = false;
 let settingsLongPressStartX = 0;
 let settingsLongPressStartY = 0;
 let currentRenderedRides = [];
+let pendingImportedState = null;
 
 const MANAGEMENT_PANEL_HEIGHT = 510;
 
@@ -165,6 +168,39 @@ function consumeNavigationReturnTarget() {
   return target;
 }
 
+function beginTransientParkDrilldown(customListId) {
+  const origin = customParkById(customListId);
+  if (!origin) return false;
+
+  transientParkNavigation.begin(customListId);
+  transientParkOriginName = origin.name;
+  return true;
+}
+
+function clearTransientParkDrilldown() {
+  transientParkNavigation.clear();
+  transientParkOriginName = null;
+}
+
+function hasTransientParkDrilldown() {
+  return transientParkOriginName !== null;
+}
+
+function returnToTransientParkOrigin() {
+  const originId = transientParkNavigation.consumeOrigin();
+  transientParkOriginName = null;
+  const origin = customParkById(originId);
+
+  if (!origin) {
+    renderHomeShell();
+    return;
+  }
+
+  Shared.viewPark(state, origin.id, origin.name);
+  showView("main");
+  loadWaitTimes();
+}
+
 function returnToHomeView() {
   showView("main");
   loadWaitTimes();
@@ -178,11 +214,13 @@ function returnToHomeView() {
 }
 
 function showSettingsPage() {
+  clearTransientParkDrilldown();
   updateSettingsControls();
   showView("settings");
 }
 
 function showAboutPage() {
+  clearTransientParkDrilldown();
   const metadata = Shared.APP_METADATA;
   $("aboutAppName").textContent = metadata.name;
   $("aboutVersion").textContent = `Version ${metadata.version}`;
@@ -280,6 +318,125 @@ function applyWaitListTextSize(waitListTextSize) {
   if (!views.main.classList.contains("hidden")) {
     renderRides(currentRenderedRides);
   }
+}
+
+function setBackupStatus(message) {
+  $("backupStatus").textContent = message;
+}
+
+async function exportBackup() {
+  const button = $("exportBackupBtn");
+  button.disabled = true;
+  setBackupStatus("");
+
+  try {
+    const result = await window.electronAPI?.exportBackup?.({
+      content: Shared.serializeBackup(state),
+      fileName: Shared.backupFileName()
+    });
+    if (!result || result.canceled) return;
+
+    setBackupStatus(`Exported ${result.fileName || "Queue Panel backup"}.`);
+  } catch (error) {
+    console.error(error);
+    setBackupStatus("Queue Panel data could not be exported.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function hideImportConfirmation() {
+  pendingImportedState = null;
+  $("importConfirmOverlay").classList.add("hidden");
+}
+
+function showImportConfirmation(importedState) {
+  pendingImportedState = importedState;
+  const replacing = Shared.hasMeaningfulConfiguration(state);
+  $("importConfirmText").textContent = replacing
+    ? "Importing this file will replace your current Queue Panel configuration, including favorites, ride lists, custom lists, ordering, and settings.\n\nThis cannot be undone unless you export your current data first."
+    : "Import this Queue Panel configuration?\n\nYour parks, ride lists, custom lists, ordering, and settings will be loaded from the selected file.";
+  $("importConfirmApplyBtn").textContent = replacing
+    ? "Import & Replace"
+    : "Import";
+  $("importConfirmOverlay").classList.remove("hidden");
+}
+
+async function chooseBackupToImport() {
+  const button = $("importBackupBtn");
+  button.disabled = true;
+  setBackupStatus("");
+
+  try {
+    const result = await window.electronAPI?.importBackup?.();
+    if (!result || result.canceled) return;
+
+    showImportConfirmation(Shared.parseBackup(result.content));
+  } catch (error) {
+    console.error(error);
+    setBackupStatus(
+      error?.code === "unsupported_version"
+        ? error.message
+        : "This is not a valid Queue Panel backup."
+    );
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function applyPendingImport() {
+  if (!pendingImportedState) return;
+
+  clearTransientParkDrilldown();
+  state = Shared.replaceConfiguration(state, pendingImportedState, true);
+  pendingImportedState = null;
+  $("importConfirmOverlay").classList.add("hidden");
+  activeCustomListId = null;
+  activeCustomSourceParkId = null;
+  navigationReturnTarget = null;
+  saveState();
+  applyThemeToDocument();
+  updateSettingsControls();
+  renderHomeShell();
+  loadWaitTimes();
+  setBackupStatus("Queue Panel data imported successfully.");
+}
+
+function hideClearDataConfirmation() {
+  $("clearDataConfirmOverlay").classList.add("hidden");
+}
+
+function showClearDataConfirmation() {
+  $("clearDataConfirmOverlay").classList.remove("hidden");
+}
+
+function clearAllQueuePanelData(confirmed = true) {
+  const clearedState = Shared.clearQueuePanelData(localStorage, confirmed);
+  if (!clearedState) return false;
+
+  clearTransientParkDrilldown();
+  state = clearedState;
+  pendingImportedState = null;
+  activeCustomListId = null;
+  activeCustomSourceParkId = null;
+  navigationReturnTarget = null;
+  draftCustomListId = null;
+  draftCustomListName = null;
+  draftCustomListChanged = false;
+  deleteCustomListArmed = false;
+  parkHoursById = {};
+  currentRenderedRides = [];
+  lastRefreshTime = null;
+  waitRefreshFailed = false;
+  hideClearDataConfirmation();
+  applyThemeToDocument();
+  updateSettingsControls();
+  updateWaitListTextSizeClass();
+  updateTrayMenuState();
+  renderHomeShell();
+  showView("main");
+  loadWaitTimes();
+  return true;
 }
 
 function syncFilterClearButton(inputId) {
@@ -647,6 +804,12 @@ function renderHomeShell() {
   const canCycle = state.parkOrder.length > 1;
   $("prevParkBtn").disabled = !canCycle;
   $("nextParkBtn").disabled = !canCycle;
+  const transient = hasTransientParkDrilldown();
+  $("parkNavSlot").classList.toggle("transient", transient);
+  $("transientParkBackBtn").classList.toggle("hidden", !transient);
+  $("transientParkBackBtn").title = transient
+    ? `Back to ${transientParkOriginName}`
+    : "Back to custom list";
 }
 
 function renderRides(rides) {
@@ -693,6 +856,8 @@ function renderRides(rides) {
         row.setAttribute("aria-label", `View ${label}`);
 
         const openPark = () => {
+          const originId = currentParkId();
+          if (!beginTransientParkDrilldown(originId)) return;
           Shared.viewPark(state, ride.parkId, ride.parkName || label);
           showView("main");
           loadWaitTimes();
@@ -1709,6 +1874,7 @@ function renderCyclePreview() {
   }
 
 function cyclePark(direction) {
+  clearTransientParkDrilldown();
   const order = state.parkOrder;
   if (order.length === 0) return;
 
@@ -1732,7 +1898,11 @@ function cyclePark(direction) {
 }
 
 async function goHomePark() {
-  if (!state.homeParkId) return;
+  clearTransientParkDrilldown();
+  if (!state.homeParkId) {
+    renderHomeShell();
+    return;
+  }
 
   state.currentParkId = String(state.homeParkId);
   saveState();
@@ -1943,6 +2113,7 @@ async function configureCurrentPark() {
   const id = currentParkId();
   if (!id) return;
 
+  clearTransientParkDrilldown();
   setNavigationReturnTarget("home");
 
   if (isCustomParkId(id)) {
@@ -1991,6 +2162,7 @@ function handleSettingsTap(event) {
     return;
   }
 
+  clearTransientParkDrilldown();
   setNavigationReturnTarget(null);
   loadParkPicker();
 }
@@ -2093,6 +2265,29 @@ $("timeFormat12Btn").addEventListener("click", () => applyTimeFormat("12h"));
 $("timeFormat24Btn").addEventListener("click", () => applyTimeFormat("24h"));
 $("waitListTextSmallBtn").addEventListener("click", () => applyWaitListTextSize("small"));
 $("waitListTextLargeBtn").addEventListener("click", () => applyWaitListTextSize("large"));
+$("exportBackupBtn").addEventListener("click", exportBackup);
+$("importBackupBtn").addEventListener("click", chooseBackupToImport);
+const clearAllDataButton = $("clearAllDataBtn");
+if (Shared.configureOptionalAction(
+  clearAllDataButton,
+  Shared.FEATURE_FLAGS.clearAllDataUtility
+)) {
+  clearAllDataButton.addEventListener("click", showClearDataConfirmation);
+}
+$("importConfirmCancelBtn").addEventListener("click", hideImportConfirmation);
+$("importConfirmApplyBtn").addEventListener("click", applyPendingImport);
+$("importConfirmOverlay").addEventListener("click", (event) => {
+  if (event.target === $("importConfirmOverlay")) hideImportConfirmation();
+});
+$("clearDataConfirmCancelBtn").addEventListener("click", hideClearDataConfirmation);
+$("clearDataConfirmApplyBtn").addEventListener("click", () => {
+  clearAllQueuePanelData(true);
+});
+$("clearDataConfirmOverlay").addEventListener("click", (event) => {
+  if (event.target === $("clearDataConfirmOverlay")) {
+    hideClearDataConfirmation();
+  }
+});
 
 $("aboutQueueTimesLink").addEventListener("click", (event) => {
   event.preventDefault();
@@ -2231,8 +2426,10 @@ document.addEventListener("keydown", (event) => {
 
 $("prevParkBtn").addEventListener("click", () => cyclePark(-1));
 $("nextParkBtn").addEventListener("click", () => cyclePark(1));
+$("transientParkBackBtn").addEventListener("click", returnToTransientParkOrigin);
 
 window.electronAPI?.onGoToPark?.(async (parkId) => {
+  clearTransientParkDrilldown();
   state.currentParkId = String(parkId);
   saveState();
 

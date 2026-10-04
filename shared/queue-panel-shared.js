@@ -23,6 +23,26 @@
     queueTimesUrl: "https://queue-times.com"
   };
 
+  const BACKUP_FORMAT = "queue-panel-backup";
+  const BACKUP_VERSION = 1;
+  const QUEUE_PANEL_STORAGE_KEY = "queuePanelState";
+  const QUEUE_PANEL_STORAGE_KEYS = [QUEUE_PANEL_STORAGE_KEY];
+  const FEATURE_FLAGS = Object.freeze({
+    // Development utility: set to false before a public release to remove its UI.
+    clearAllDataUtility: true
+  });
+  const PERSISTENT_STATE_KEYS = [
+    "homeParkId",
+    "currentParkId",
+    "favoriteParkIds",
+    "parkOrder",
+    "ridesByParkId",
+    "parkNamesById",
+    "customParks",
+    "customParkRides",
+    "settings"
+  ];
+
   function loadState(storage, storageKey) {
     try {
       return normalizeState({
@@ -68,6 +88,202 @@
 
   function saveState(storage, storageKey, state) {
     storage.setItem(storageKey, JSON.stringify(normalizeState(state)));
+  }
+
+  function clearQueuePanelData(storage, confirmed = true) {
+    if (!confirmed) return null;
+
+    for (const key of QUEUE_PANEL_STORAGE_KEYS) {
+      storage.removeItem(key);
+    }
+
+    return loadState(storage, QUEUE_PANEL_STORAGE_KEY);
+  }
+
+  function configureOptionalAction(element, enabled) {
+    if (!element) return false;
+    if (!enabled) {
+      element.remove();
+      return false;
+    }
+
+    element.classList.remove("hidden");
+    return true;
+  }
+
+  function isPlainObject(value) {
+    return Boolean(value && typeof value === "object" && !Array.isArray(value));
+  }
+
+  function cloneJson(value) {
+    return JSON.parse(JSON.stringify(value));
+  }
+
+  function persistentState(state) {
+    const source = isPlainObject(state) ? state : {};
+    const snapshot = cloneJson(DEFAULT_STATE);
+
+    for (const key of PERSISTENT_STATE_KEYS) {
+      if (
+        Object.prototype.hasOwnProperty.call(source, key) &&
+        source[key] !== undefined
+      ) {
+        snapshot[key] = cloneJson(source[key]);
+      }
+    }
+
+    const normalized = normalizeState(snapshot);
+    const customIds = new Set(normalized.customParks.map((park) => String(park.id)));
+
+    if (
+      isCustomParkId(normalized.homeParkId) &&
+      !customIds.has(String(normalized.homeParkId))
+    ) {
+      normalized.homeParkId = null;
+    }
+    if (
+      isCustomParkId(normalized.currentParkId) &&
+      !customIds.has(String(normalized.currentParkId))
+    ) {
+      normalized.currentParkId = null;
+    }
+    if (!normalized.currentParkId) {
+      normalized.currentParkId =
+        normalized.homeParkId || normalized.parkOrder[0] || null;
+    }
+
+    return normalized;
+  }
+
+  function createBackup(state, exportedAt = new Date().toISOString()) {
+    return {
+      format: BACKUP_FORMAT,
+      version: BACKUP_VERSION,
+      exportedAt,
+      state: persistentState(state)
+    };
+  }
+
+  function serializeBackup(state, exportedAt) {
+    return JSON.stringify(createBackup(state, exportedAt), null, 2);
+  }
+
+  function backupError(code, message = "This is not a valid Queue Panel backup.") {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+  }
+
+  function validateStateShape(value) {
+    if (!isPlainObject(value)) throw backupError("invalid_state");
+
+    const nullableId = (id) =>
+      id === null || typeof id === "string" || Number.isFinite(id);
+    if ("homeParkId" in value && !nullableId(value.homeParkId)) {
+      throw backupError("invalid_state");
+    }
+    if ("currentParkId" in value && !nullableId(value.currentParkId)) {
+      throw backupError("invalid_state");
+    }
+
+    for (const key of ["favoriteParkIds", "parkOrder"]) {
+      if (
+        key in value &&
+        (!Array.isArray(value[key]) || !value[key].every(nullableId))
+      ) {
+        throw backupError("invalid_state");
+      }
+    }
+
+    for (const key of ["ridesByParkId", "customParkRides"]) {
+      if (key in value && !isPlainObject(value[key])) {
+        throw backupError("invalid_state");
+      }
+      if (
+        isPlainObject(value[key]) &&
+        !Object.values(value[key]).every(Array.isArray)
+      ) {
+        throw backupError("invalid_state");
+      }
+    }
+
+    if (
+      "parkNamesById" in value &&
+      (!isPlainObject(value.parkNamesById) ||
+        !Object.values(value.parkNamesById).every((name) => typeof name === "string"))
+    ) {
+      throw backupError("invalid_state");
+    }
+
+    if (
+      "customParks" in value &&
+      (!Array.isArray(value.customParks) ||
+        !value.customParks.every((park) =>
+          isPlainObject(park) &&
+          (typeof park.id === "string" || Number.isFinite(park.id)) &&
+          typeof park.name === "string"
+        ))
+    ) {
+      throw backupError("invalid_state");
+    }
+
+    if ("settings" in value && !isPlainObject(value.settings)) {
+      throw backupError("invalid_state");
+    }
+  }
+
+  function parseBackup(json) {
+    let backup;
+    try {
+      backup = typeof json === "string" ? JSON.parse(json) : json;
+    } catch {
+      throw backupError("invalid_json");
+    }
+
+    if (!isPlainObject(backup) || backup.format !== BACKUP_FORMAT) {
+      throw backupError("invalid_format");
+    }
+    if (backup.version !== BACKUP_VERSION) {
+      throw backupError(
+        "unsupported_version",
+        "This Queue Panel backup uses an unsupported version."
+      );
+    }
+    if (
+      typeof backup.exportedAt !== "string" ||
+      Number.isNaN(Date.parse(backup.exportedAt))
+    ) {
+      throw backupError("invalid_exported_at");
+    }
+
+    validateStateShape(backup.state);
+    return persistentState(backup.state);
+  }
+
+  function hasMeaningfulConfiguration(state) {
+    const value = persistentState(state);
+    const settings = value.settings || {};
+
+    return Boolean(
+      value.homeParkId ||
+      value.currentParkId ||
+      value.favoriteParkIds.length ||
+      value.parkOrder.length ||
+      Object.values(value.ridesByParkId).some((items) => items.some(Boolean)) ||
+      value.customParks.length ||
+      Object.values(value.customParkRides).some((items) => items.some(Boolean)) ||
+      settings.theme !== DEFAULT_STATE.settings.theme ||
+      settings.timeFormat !== DEFAULT_STATE.settings.timeFormat ||
+      settings.waitListTextSize !== DEFAULT_STATE.settings.waitListTextSize
+    );
+  }
+
+  function replaceConfiguration(currentState, importedState, confirmed) {
+    return confirmed ? persistentState(importedState) : currentState;
+  }
+
+  function backupFileName(date = new Date()) {
+    return `QueuePanel_Backup_${date.toISOString().slice(0, 10)}.json`;
   }
 
   function uniqueIds(ids) {
@@ -700,10 +916,25 @@
 
   const QueuePanelShared = {
     APP_METADATA,
+    BACKUP_FORMAT,
+    BACKUP_VERSION,
+    PERSISTENT_STATE_KEYS,
     DEFAULT_STATE,
+    FEATURE_FLAGS,
+    QUEUE_PANEL_STORAGE_KEY,
+    QUEUE_PANEL_STORAGE_KEYS,
     loadState,
     normalizeState,
     saveState,
+    clearQueuePanelData,
+    configureOptionalAction,
+    persistentState,
+    createBackup,
+    serializeBackup,
+    parseBackup,
+    hasMeaningfulConfiguration,
+    replaceConfiguration,
+    backupFileName,
     uniqueIds,
     ridesFromQueueData,
     isQueueData,

@@ -1,5 +1,5 @@
 const Shared = window.QueuePanelShared;
-const STORAGE_KEY = "queuePanelState";
+const STORAGE_KEY = Shared.QUEUE_PANEL_STORAGE_KEY;
 const usePackagedQueueTimes = Boolean(window.Capacitor?.isNativePlatform?.());
 const api = Shared.createApi({
   parksUrl: usePackagedQueueTimes
@@ -48,6 +48,7 @@ let isParkSwipeAnimating = false;
 let waitLoadToken = 0;
 let currentRenderedRides = [];
 const transientParkNavigation = Shared.createTransientParkNavigation();
+let pendingImportedState = null;
 
 const PARK_SWIPE_PHASE_MS = 90;
 
@@ -120,6 +121,10 @@ function capacitorHapticsPlugin() {
 
 function capacitorBrowserPlugin() {
   return window.Capacitor?.Plugins?.Browser || window.CapacitorBrowser;
+}
+
+function backupTransferPlugin() {
+  return window.Capacitor?.Plugins?.BackupTransfer;
 }
 
 function triggerLongPressHaptic() {
@@ -260,6 +265,133 @@ function applyWaitListTextSize(waitListTextSize) {
   if (!views.main.classList.contains("hidden")) {
     renderRides(currentRenderedRides);
   }
+}
+
+function setBackupStatus(message) {
+  $("backupStatus").textContent = message;
+}
+
+async function exportBackup() {
+  const button = $("exportBackupBtn");
+  button.disabled = true;
+  setBackupStatus("");
+
+  try {
+    const plugin = backupTransferPlugin();
+    if (!plugin?.exportData) throw new Error("Backup export is unavailable");
+
+    const result = await plugin.exportData({
+      content: Shared.serializeBackup(state),
+      fileName: Shared.backupFileName()
+    });
+    if (result?.canceled) return;
+
+    const message = `Exported ${result?.fileName || "Queue Panel backup"}.`;
+    setBackupStatus(message);
+    showToast(message);
+  } catch (error) {
+    console.error(error);
+    setBackupStatus("Queue Panel data could not be exported.");
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function hideImportConfirmation() {
+  pendingImportedState = null;
+  $("importConfirmOverlay").classList.add("hidden");
+}
+
+function showImportConfirmation(importedState) {
+  pendingImportedState = importedState;
+  const replacing = Shared.hasMeaningfulConfiguration(state);
+  $("importConfirmText").textContent = replacing
+    ? "Importing this file will replace your current Queue Panel configuration, including favorites, ride lists, custom lists, ordering, and settings.\n\nThis cannot be undone unless you export your current data first."
+    : "Import this Queue Panel configuration?\n\nYour parks, ride lists, custom lists, ordering, and settings will be loaded from the selected file.";
+  $("importConfirmApplyBtn").textContent = replacing
+    ? "Import & Replace"
+    : "Import";
+  $("importConfirmOverlay").classList.remove("hidden");
+}
+
+async function chooseBackupToImport() {
+  const button = $("importBackupBtn");
+  button.disabled = true;
+  setBackupStatus("");
+
+  try {
+    const plugin = backupTransferPlugin();
+    if (!plugin?.importData) throw new Error("Backup import is unavailable");
+
+    const result = await plugin.importData();
+    if (result?.canceled) return;
+
+    showImportConfirmation(Shared.parseBackup(result?.content));
+  } catch (error) {
+    console.error(error);
+    setBackupStatus(
+      error?.code === "unsupported_version"
+        ? error.message
+        : "This is not a valid Queue Panel backup."
+    );
+  } finally {
+    button.disabled = false;
+  }
+}
+
+function applyPendingImport() {
+  if (!pendingImportedState) return;
+
+  state = Shared.replaceConfiguration(state, pendingImportedState, true);
+  pendingImportedState = null;
+  $("importConfirmOverlay").classList.add("hidden");
+  transientParkNavigation.clear();
+  activeCustomListId = null;
+  activeCustomSourceParkId = null;
+  navigationReturnTarget = null;
+  saveState();
+  applyThemeToDocument();
+  updateSettingsControls();
+  renderHomeShell();
+  loadWaitTimes();
+  setBackupStatus("Queue Panel data imported successfully.");
+  showToast("Queue Panel data imported successfully.");
+}
+
+function hideClearDataConfirmation() {
+  $("clearDataConfirmOverlay").classList.add("hidden");
+}
+
+function showClearDataConfirmation() {
+  $("clearDataConfirmOverlay").classList.remove("hidden");
+}
+
+function clearAllQueuePanelData(confirmed = true) {
+  const clearedState = Shared.clearQueuePanelData(localStorage, confirmed);
+  if (!clearedState) return false;
+
+  state = clearedState;
+  pendingImportedState = null;
+  transientParkNavigation.clear();
+  activeCustomListId = null;
+  activeCustomSourceParkId = null;
+  navigationReturnTarget = null;
+  draftCustomListId = null;
+  draftCustomListName = null;
+  draftCustomListChanged = false;
+  deleteCustomListArmed = false;
+  currentRenderedRides = [];
+  lastRefreshTime = null;
+  waitRefreshFailed = false;
+  hideClearDataConfirmation();
+  applyThemeToDocument();
+  updateSettingsControls();
+  updateWaitListTextSizeClass();
+  renderHomeShell();
+  showView("main");
+  loadWaitTimes();
+  showToast("Queue Panel data cleared.");
+  return true;
 }
 
 function syncFilterClearButton(inputId) {
@@ -1822,6 +1954,15 @@ function handleRidePickerBack() {
 }
 
 function closeTopPopup() {
+  if (!$("clearDataConfirmOverlay").classList.contains("hidden")) {
+    hideClearDataConfirmation();
+    return true;
+  }
+  if (!$("importConfirmOverlay").classList.contains("hidden")) {
+    hideImportConfirmation();
+    return true;
+  }
+
   if (!$("homeConfirmOverlay").classList.contains("hidden")) {
     hideHomeConfirmSheet();
     return true;
@@ -1941,6 +2082,29 @@ $("timeFormat12Btn").addEventListener("click", () => applyTimeFormat("12h"));
 $("timeFormat24Btn").addEventListener("click", () => applyTimeFormat("24h"));
 $("waitListTextSmallBtn").addEventListener("click", () => applyWaitListTextSize("small"));
 $("waitListTextLargeBtn").addEventListener("click", () => applyWaitListTextSize("large"));
+$("exportBackupBtn").addEventListener("click", exportBackup);
+$("importBackupBtn").addEventListener("click", chooseBackupToImport);
+const clearAllDataButton = $("clearAllDataBtn");
+if (Shared.configureOptionalAction(
+  clearAllDataButton,
+  Shared.FEATURE_FLAGS.clearAllDataUtility
+)) {
+  clearAllDataButton.addEventListener("click", showClearDataConfirmation);
+}
+$("importConfirmCancelBtn").addEventListener("click", hideImportConfirmation);
+$("importConfirmApplyBtn").addEventListener("click", applyPendingImport);
+$("importConfirmOverlay").addEventListener("click", (event) => {
+  if (event.target === $("importConfirmOverlay")) hideImportConfirmation();
+});
+$("clearDataConfirmCancelBtn").addEventListener("click", hideClearDataConfirmation);
+$("clearDataConfirmApplyBtn").addEventListener("click", () => {
+  clearAllQueuePanelData(true);
+});
+$("clearDataConfirmOverlay").addEventListener("click", (event) => {
+  if (event.target === $("clearDataConfirmOverlay")) {
+    hideClearDataConfirmation();
+  }
+});
 
 $("aboutQueueTimesLink").addEventListener("click", (event) => {
   event.preventDefault();

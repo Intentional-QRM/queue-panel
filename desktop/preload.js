@@ -5,6 +5,8 @@ contextBridge.exposeInMainWorld("electronAPI", {
   openExternal: (url) => ipcRenderer.send("open-external", url),
 
   updateTrayMenu: (data) => ipcRenderer.send("update-tray-menu", data),
+  exportBackup: (data) => ipcRenderer.invoke("export-backup", data),
+  importBackup: () => ipcRenderer.invoke("import-backup"),
 
   onGoToPark: (callback) => {
     ipcRenderer.on("go-to-park", (event, parkId) => callback(parkId));

@@ -135,6 +135,17 @@
           <button id="waitListTextLargeBtn" class="option-row" type="button">Large</button>
         </div>
       </div>
+
+      <div class="settings-section">
+        <div class="settings-heading">Backup &amp; Transfer</div>
+        <p class="settings-help">Export your Queue Panel setup for backup or transfer to another device. Import a previously exported file to restore or copy your setup.</p>
+        <div class="option-group">
+          <button id="exportBackupBtn" class="option-row" type="button">Export Queue Panel Data</button>
+          <button id="importBackupBtn" class="option-row" type="button">Import Queue Panel Data</button>
+          <button id="clearAllDataBtn" class="option-row hidden" type="button">Clear All Queue Panel Data</button>
+        </div>
+        <div id="backupStatus" class="settings-status" aria-live="polite"></div>
+      </div>
     </div>
 
     <div id="aboutView" class="hidden">
@@ -157,6 +168,26 @@
         <div class="sheet-actions">
           <button id="homeConfirmCancelBtn" class="sheet-btn" type="button">Cancel</button>
           <button id="homeConfirmSetBtn" class="sheet-btn primary" type="button">Set Home</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="importConfirmOverlay" class="sheet-overlay hidden">
+      <div class="bottom-sheet">
+        <div id="importConfirmText" class="sheet-message"></div>
+        <div class="sheet-actions">
+          <button id="importConfirmCancelBtn" class="sheet-btn" type="button">Cancel</button>
+          <button id="importConfirmApplyBtn" class="sheet-btn primary" type="button">Import</button>
+        </div>
+      </div>
+    </div>
+
+    <div id="clearDataConfirmOverlay" class="sheet-overlay hidden">
+      <div class="bottom-sheet">
+        <div class="sheet-message">Clear all Queue Panel data?<br><br>This will remove all parks, ride lists, custom lists, ordering, and settings from this device and return Queue Panel to its default state.</div>
+        <div class="sheet-actions">
+          <button id="clearDataConfirmCancelBtn" class="sheet-btn" type="button">Cancel</button>
+          <button id="clearDataConfirmApplyBtn" class="sheet-btn primary" type="button">Clear All Data</button>
         </div>
       </div>
     </div>

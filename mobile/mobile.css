@@ -507,6 +507,18 @@ input:focus {
   color: var(--accent);
 }
 
+.settings-help,
+.settings-status {
+  color: var(--muted-text);
+  font-size: 13px;
+  line-height: 1.45;
+  margin: 0 0 8px;
+}
+
+.settings-status {
+  margin: 8px 0 0;
+}
+
 .about-content {
   padding-top: 18px;
   text-align: center;
