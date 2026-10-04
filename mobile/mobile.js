@@ -1,4 +1,5 @@
 const Shared = window.QueuePanelShared;
+const PinchTextSize = window.QueuePanelPinchTextSize;
 const STORAGE_KEY = Shared.QUEUE_PANEL_STORAGE_KEY;
 const usePackagedQueueTimes = Boolean(window.Capacitor?.isNativePlatform?.());
 const api = Shared.createApi({
@@ -53,6 +54,9 @@ let pendingImportedState = null;
 const PARK_SWIPE_PHASE_MS = 90;
 
 const $ = (id) => document.getElementById(id);
+const pinchTextSizeGesture = PinchTextSize.createPinchTextSizeGesture(
+  applyWaitListTextSize
+);
 
 function getHomeScrollContainer() {
   const rideList = $("rideList");
@@ -2155,6 +2159,23 @@ document.addEventListener("click", (event) => {
 });
 
 document.addEventListener("touchstart", (event) => {
+  if (
+    event.touches.length === 2 &&
+    !views.main.classList.contains("hidden")
+  ) {
+    if (!pinchTextSizeGesture.isActive()) {
+      pinchTextSizeGesture.begin(event.touches);
+    }
+    pullDistance = 0;
+    pullGestureStartedAtTop = false;
+    if (!waitRefreshFailed && !isPullRefreshing) {
+      $("pullRefreshStatus").classList.remove("visible");
+    }
+    if (event.cancelable) event.preventDefault();
+    return;
+  }
+
+  if (pinchTextSizeGesture.isActive()) return;
   if ($("homeBtn").contains(event.target)) return;
 
   touchStartX = event.touches[0].clientX;
@@ -2167,6 +2188,12 @@ document.addEventListener("touchstart", (event) => {
 });
 
 document.addEventListener("touchmove", (event) => {
+  if (pinchTextSizeGesture.isActive()) {
+    if (event.cancelable) event.preventDefault();
+    pinchTextSizeGesture.move(event.touches);
+    return;
+  }
+
   if ($("homeBtn").contains(event.target)) return;
   if (views.main.classList.contains("hidden") || isPullRefreshing) return;
   if (!pullGestureStartedAtTop) return;
@@ -2186,9 +2213,19 @@ document.addEventListener("touchmove", (event) => {
     $("pullRefreshStatus").textContent =
       pullDistance >= 70 ? "Release to refresh" : "Pull to refresh";
   }
-}, { passive: true });
+}, { passive: false });
 
 document.addEventListener("touchend", (event) => {
+  if (pinchTextSizeGesture.isActive()) {
+    pinchTextSizeGesture.end(event.touches.length);
+    pullDistance = 0;
+    pullGestureStartedAtTop = false;
+    if (!waitRefreshFailed && !isPullRefreshing) {
+      $("pullRefreshStatus").classList.remove("visible");
+    }
+    return;
+  }
+
   if ($("homeBtn").contains(event.target)) return;
   if (views.main.classList.contains("hidden")) return;
 
@@ -2221,6 +2258,7 @@ document.addEventListener("touchend", (event) => {
 });
 
 document.addEventListener("touchcancel", () => {
+  pinchTextSizeGesture.cancel();
   pullDistance = 0;
   pullGestureStartedAtTop = false;
   $("pullRefreshStatus").classList.remove("visible");
