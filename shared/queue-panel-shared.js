@@ -17,8 +17,8 @@
 
   const APP_METADATA = {
     name: "Queue Panel",
-    version: "1.3.0",
-    build: "2",
+    version: "1.4.0",
+    build: "3",
     repositoryUrl: "https://github.com/Intentional-QRM/queue-panel",
     queueTimesUrl: "https://queue-times.com"
   };
@@ -27,10 +27,6 @@
   const BACKUP_VERSION = 1;
   const QUEUE_PANEL_STORAGE_KEY = "queuePanelState";
   const QUEUE_PANEL_STORAGE_KEYS = [QUEUE_PANEL_STORAGE_KEY];
-  const FEATURE_FLAGS = Object.freeze({
-    // Development utility: set to false before a public release to remove its UI.
-    clearAllDataUtility: true
-  });
   const PERSISTENT_STATE_KEYS = [
     "homeParkId",
     "currentParkId",
@@ -98,17 +94,6 @@
     }
 
     return loadState(storage, QUEUE_PANEL_STORAGE_KEY);
-  }
-
-  function configureOptionalAction(element, enabled) {
-    if (!element) return false;
-    if (!enabled) {
-      element.remove();
-      return false;
-    }
-
-    element.classList.remove("hidden");
-    return true;
   }
 
   function isPlainObject(value) {
@@ -920,14 +905,12 @@
     BACKUP_VERSION,
     PERSISTENT_STATE_KEYS,
     DEFAULT_STATE,
-    FEATURE_FLAGS,
     QUEUE_PANEL_STORAGE_KEY,
     QUEUE_PANEL_STORAGE_KEYS,
     loadState,
     normalizeState,
     saveState,
     clearQueuePanelData,
-    configureOptionalAction,
     persistentState,
     createBackup,
     serializeBackup,

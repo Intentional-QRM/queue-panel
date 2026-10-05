@@ -2267,13 +2267,7 @@ $("waitListTextSmallBtn").addEventListener("click", () => applyWaitListTextSize(
 $("waitListTextLargeBtn").addEventListener("click", () => applyWaitListTextSize("large"));
 $("exportBackupBtn").addEventListener("click", exportBackup);
 $("importBackupBtn").addEventListener("click", chooseBackupToImport);
-const clearAllDataButton = $("clearAllDataBtn");
-if (Shared.configureOptionalAction(
-  clearAllDataButton,
-  Shared.FEATURE_FLAGS.clearAllDataUtility
-)) {
-  clearAllDataButton.addEventListener("click", showClearDataConfirmation);
-}
+$("clearAllDataBtn").addEventListener("click", showClearDataConfirmation);
 $("importConfirmCancelBtn").addEventListener("click", hideImportConfirmation);
 $("importConfirmApplyBtn").addEventListener("click", applyPendingImport);
 $("importConfirmOverlay").addEventListener("click", (event) => {

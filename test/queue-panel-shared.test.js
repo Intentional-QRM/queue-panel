@@ -1,11 +1,23 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
+const fs = require("node:fs");
+const path = require("node:path");
 
 const Shared = require("../shared/queue-panel-shared");
+const packageMetadata = require("../package.json");
 
 test("application metadata matches the current release and Android build", () => {
-  assert.equal(Shared.APP_METADATA.version, "1.3.0");
-  assert.equal(Shared.APP_METADATA.build, "2");
+  const androidBuild = fs.readFileSync(
+    path.join(__dirname, "..", "android", "app", "build.gradle"),
+    "utf8"
+  );
+
+  assert.equal(packageMetadata.version, "1.4.0");
+  assert.equal(Shared.APP_METADATA.version, "1.4.0");
+  assert.equal(Shared.APP_METADATA.build, "3");
+  assert.equal(Shared.BACKUP_VERSION, 1);
+  assert.match(androidBuild, /versionCode\s+3/);
+  assert.match(androidBuild, /versionName\s+"1\.4\.0"/);
 });
 
 function memoryStorage(initialValue) {
@@ -567,33 +579,6 @@ test("canceling clear changes neither state nor storage", () => {
 
   assert.equal(Shared.clearQueuePanelData(storage, false), null);
   assert.equal(storage.getItem(Shared.QUEUE_PANEL_STORAGE_KEY), serialized);
-});
-
-test("disabled clear action is absent while its reset function remains usable", () => {
-  let removed = false;
-  const element = {
-    remove() { removed = true; },
-    classList: { remove() { throw new Error("hidden class should not be changed"); } }
-  };
-  const storage = keyedMemoryStorage({
-    [Shared.QUEUE_PANEL_STORAGE_KEY]: JSON.stringify({ homeParkId: "7" })
-  });
-
-  assert.equal(Shared.configureOptionalAction(element, false), false);
-  assert.equal(removed, true);
-  assert.equal(typeof Shared.clearQueuePanelData, "function");
-  assert.equal(Shared.clearQueuePanelData(storage, true).homeParkId, null);
-});
-
-test("enabled clear action becomes visible", () => {
-  let removedClass = null;
-  const element = {
-    remove() { throw new Error("enabled action should not be removed"); },
-    classList: { remove(name) { removedClass = name; } }
-  };
-
-  assert.equal(Shared.configureOptionalAction(element, true), true);
-  assert.equal(removedClass, "hidden");
 });
 
 test("backup export and import still work after a clear", () => {
