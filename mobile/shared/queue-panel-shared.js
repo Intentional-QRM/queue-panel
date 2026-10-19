@@ -298,12 +298,34 @@
 
   function parseParkStatusHtml(html, timeFormat = "12h") {
     try {
-      const statusText = new DOMParser()
-        .parseFromString(html, "text/html")
-        .querySelector("p.subtitle")
-        ?.textContent
-        ?.replace(/\s+/g, " ")
-        ?.trim();
+      const document = new DOMParser().parseFromString(html, "text/html");
+      const statusElement =
+        document.querySelector(".park-header-status") ||
+        document.querySelector("p.subtitle");
+      if (!statusElement) return "Unavailable";
+
+      const statusClone = statusElement.cloneNode(true);
+      for (const crowdElement of statusClone.querySelectorAll(".park-header-crowd")) {
+        const wrapper = crowdElement.parentElement;
+        const wrapperWithoutCrowd = wrapper
+          ? wrapper.textContent.replace(crowdElement.textContent, "")
+          : "";
+
+        if (
+          wrapper &&
+          wrapper !== statusClone &&
+          /^[\s\u00b7\u2022]*$/.test(wrapperWithoutCrowd)
+        ) {
+          wrapper.remove();
+        } else {
+          crowdElement.remove();
+        }
+      }
+
+      const statusText = statusClone.textContent
+        .replace(/\s+/g, " ")
+        .replace(/[\s\u00b7\u2022]+$/, "")
+        .trim();
 
       if (!statusText) return "Unavailable";
 
@@ -366,20 +388,43 @@
   }
 
   function formatParkStatusText(statusText, timeFormat = "12h") {
-    const text = String(statusText || "").trim().replace(/^Currently open\b/i, "Open");
-    const match = text.match(
-      /^(open)\b(.*?)(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?\s*(?:-|\u2013|\u2014)\s*(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?(.*)$/i
-    );
-    if (!match) return text;
-
-    const openParts = parseStatusTimeParts(match[3], match[4], match[5]);
-    const closeParts = parseStatusTimeParts(match[6], match[7], match[8]);
-    if (!openParts || !closeParts) return text;
-
-    const prefix = `${match[1][0].toUpperCase()}${match[1].slice(1).toLowerCase()}`;
-    return `${prefix}${match[2]}${formatClockTime(openParts.hour, openParts.minute, timeFormat)} \u2013 ${formatClockTime(closeParts.hour, closeParts.minute, timeFormat)}${match[9]}`
+    const text = String(statusText || "")
       .replace(/\s+/g, " ")
-      .trim();
+      .trim()
+      .replace(/^Currently open\b/i, "Open");
+    const operationalText = text.replace(
+      /^Closed\s*[\u00b7\u2022]\s*(?=Opens\b)/i,
+      ""
+    );
+    const match = operationalText.match(
+      /^(open)\b\s*(?:[\u00b7\u2022]\s*)?(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?\s*(?:-|\u2013|\u2014)\s*(\d{1,2})(?::?(\d{2}))?\s*(am|pm)?(?:\s*[\u00b7\u2022].*)?$/i
+    );
+    if (match) {
+      const openParts = parseStatusTimeParts(match[2], match[3], match[4]);
+      const closeParts = parseStatusTimeParts(match[5], match[6], match[7]);
+      if (!openParts || !closeParts) return operationalText;
+
+      const prefix = `${match[1][0].toUpperCase()}${match[1].slice(1).toLowerCase()}`;
+      return `${prefix} ${formatClockTime(openParts.hour, openParts.minute, timeFormat)} \u2013 ${formatClockTime(closeParts.hour, closeParts.minute, timeFormat)}`;
+    }
+
+    const nextOpeningMatch = operationalText.match(
+      /^(Opens\b.*?)\s+(\d{1,2})(?::(\d{2}))?\s*(am|pm)?$/i
+    );
+    if (!nextOpeningMatch) return operationalText;
+
+    const openingParts = parseStatusTimeParts(
+      nextOpeningMatch[2],
+      nextOpeningMatch[3],
+      nextOpeningMatch[4]
+    );
+    if (!openingParts) return operationalText;
+
+    return `${nextOpeningMatch[1].trim()} ${formatClockTime(
+      openingParts.hour,
+      openingParts.minute,
+      timeFormat
+    )}`;
   }
 
   function parseStatusCloseTime(statusText, now = new Date()) {

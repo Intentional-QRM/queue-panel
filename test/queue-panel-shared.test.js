@@ -201,6 +201,216 @@ test("Queue-Times URL generators produce the expected endpoints", () => {
   );
 });
 
+const updatedParkStatusHtml = `
+  <p class="subtitle is-5 park-header-status">
+    <span class="park-status-dot is-open"></span>
+    <span class="has-text-dark-green has-text-weight-bold">Open</span>
+    <span>· 10:00 - 21:00</span>
+    <span>
+      ·
+      <a class="park-header-crowd"
+         aria-label="Crowd level: Busy (71%)"
+         href="/parks/55/calendar/2026/10">
+        <span aria-hidden="true" class="park-header-crowd-swatch"></span>
+        Busy (71%)
+      </a>
+    </span>
+  </p>
+`;
+
+function fakeStatusElement(operationalText, crowdText = "") {
+  return {
+    cloneNode() {
+      let textContent = crowdText
+        ? `${operationalText} · ${crowdText}`
+        : operationalText;
+      const clone = {
+        querySelectorAll(selector) {
+          if (selector !== ".park-header-crowd" || !crowdText) return [];
+
+          const crowdElement = {
+            textContent: crowdText,
+            remove() {
+              textContent = textContent.replace(crowdText, "");
+            }
+          };
+          crowdElement.parentElement = {
+            textContent: ` · ${crowdText}`,
+            remove() {
+              textContent = operationalText;
+            }
+          };
+          return [crowdElement];
+        }
+      };
+      Object.defineProperty(clone, "textContent", {
+        get: () => textContent
+      });
+      return clone;
+    }
+  };
+}
+
+function withFakeStatusDom(statusBySelector, callback) {
+  const OriginalDOMParser = global.DOMParser;
+  global.DOMParser = class {
+    parseFromString(html, type) {
+      assert.equal(type, "text/html");
+      assert.ok(typeof html === "string");
+      return {
+        querySelector(selector) {
+          return statusBySelector[selector] || null;
+        }
+      };
+    }
+  };
+
+  try {
+    return callback();
+  } finally {
+    global.DOMParser = OriginalDOMParser;
+  }
+}
+
+test("updated Queue-Times status HTML excludes crowd data", () => {
+  withFakeStatusDom({
+    ".park-header-status": fakeStatusElement("Open · 10:00 - 21:00", "Busy (71%)"),
+    "p.subtitle": fakeStatusElement("Wrong fallback subtitle")
+  }, () => {
+    assert.equal(
+      Shared.parseParkStatusHtml(updatedParkStatusHtml, "12h"),
+      "Open 10 AM – 9 PM"
+    );
+    assert.equal(
+      Shared.parseParkStatusHtml(updatedParkStatusHtml, "24h"),
+      "Open 10:00 – 21:00"
+    );
+  });
+});
+
+test("park status parsing supports no-crowd and legacy subtitle markup", () => {
+  withFakeStatusDom({
+    ".park-header-status": fakeStatusElement("Open · 09:30 - 20:30")
+  }, () => {
+    assert.equal(
+      Shared.parseParkStatusHtml("<p class='park-header-status'>Open · 09:30 - 20:30</p>"),
+      "Open 9:30 AM – 8:30 PM"
+    );
+  });
+
+  withFakeStatusDom({
+    "p.subtitle": fakeStatusElement("Open · 11:00 - 23:00")
+  }, () => {
+    assert.equal(
+      Shared.parseParkStatusHtml("<p class='subtitle'>Open · 11:00 - 23:00</p>"),
+      "Open 11 AM – 11 PM"
+    );
+  });
+});
+
+test("future-opening and closed statuses are preserved with unavailable fallbacks", () => {
+  for (const status of ["Opens in 2 days", "Opens in about 10 hours", "Closed"]) {
+    withFakeStatusDom({
+      ".park-header-status": fakeStatusElement(`  ${status}  `)
+    }, () => {
+      assert.equal(Shared.parseParkStatusHtml("<p></p>"), status);
+    });
+  }
+
+  withFakeStatusDom({}, () => {
+    assert.equal(Shared.parseParkStatusHtml("<html></html>"), "Unavailable");
+  });
+  withFakeStatusDom({
+    ".park-header-status": fakeStatusElement("   ")
+  }, () => {
+    assert.equal(Shared.parseParkStatusHtml("<p></p>"), "Unavailable");
+  });
+});
+
+test("status formatting removes dots and crowd suffixes without changing unknown messages", () => {
+  assert.equal(
+    Shared.formatParkStatusText("Open · 11:00 - 23:00 · Very busy (84%)"),
+    "Open 11 AM – 11 PM"
+  );
+  assert.equal(Shared.formatParkStatusText("Opens in 3 days"), "Opens in 3 days");
+  assert.equal(Shared.formatParkStatusText("Closed"), "Closed");
+});
+
+test("closed next-opening statuses drop the redundant prefix and format their time", () => {
+  const cases = [
+    ["Closed · Opens Thu 18:00", "Opens Thu 6 PM"],
+    ["Closed · Opens Wed 10:00", "Opens Wed 10 AM"],
+    ["Closed · Opens Thu 16:00", "Opens Thu 4 PM"],
+    ["Closed · Opens Thu 18:30", "Opens Thu 6:30 PM"],
+    ["Closed · Opens Fri 09:00", "Opens Fri 9 AM"],
+    ["Closed · Opens Sat 00:00", "Opens Sat 12 AM"],
+    ["Closed · Opens Sat 12:00", "Opens Sat 12 PM"]
+  ];
+
+  for (const [source, expected] of cases) {
+    assert.equal(Shared.formatParkStatusText(source, "12h"), expected);
+  }
+});
+
+test("next-opening statuses preserve 24-hour formatting and nonzero minutes", () => {
+  assert.equal(
+    Shared.formatParkStatusText("Closed · Opens Thu 18:00", "24h"),
+    "Opens Thu 18:00"
+  );
+  assert.equal(
+    Shared.formatParkStatusText("Opens Fri 09:30", "24h"),
+    "Opens Fri 09:30"
+  );
+  assert.equal(
+    Shared.formatParkStatusText("Opens Thu 16:00", "12h"),
+    "Opens Thu 4 PM"
+  );
+});
+
+test("next-opening time formatting is reversible without refetching", () => {
+  const twelveHour = Shared.formatParkStatusText(
+    "Closed · Opens Thu 18:30",
+    "12h"
+  );
+  const twentyFourHour = Shared.formatParkStatusText(twelveHour, "24h");
+
+  assert.equal(twelveHour, "Opens Thu 6:30 PM");
+  assert.equal(twentyFourHour, "Opens Thu 18:30");
+  assert.equal(
+    Shared.formatParkStatusText(twentyFourHour, "12h"),
+    "Opens Thu 6:30 PM"
+  );
+});
+
+test("relative, closed, unavailable, and unknown statuses remain meaningful", () => {
+  for (const status of [
+    "Opens in 1 day",
+    "Opens in 2 days",
+    "Opens in 3 days",
+    "Opens in about 10 hours",
+    "Closed",
+    "Unavailable",
+    "Temporarily closed",
+    "Operations paused"
+  ]) {
+    assert.equal(Shared.formatParkStatusText(status), status);
+  }
+});
+
+test("park status colors preserve open and one-hour closing classification", () => {
+  assert.equal(
+    Shared.parkStatusClass("Open 10 AM – 9 PM", new Date("2026-10-19T19:30:00")),
+    "low"
+  );
+  assert.equal(
+    Shared.parkStatusClass("Open 10 AM – 9 PM", new Date("2026-10-19T20:00:00")),
+    "medium"
+  );
+  assert.equal(Shared.parkStatusClass("Closed"), "closed");
+  assert.equal(Shared.parkStatusClass("Opens in 2 days"), "closed");
+  assert.equal(Shared.parkStatusClass("Unavailable"), "closed");
+});
+
 test("Queue-Times park responses are flattened, normalized, and sorted", () => {
   const parks = Shared.normalizeParks([
     { parks: [
